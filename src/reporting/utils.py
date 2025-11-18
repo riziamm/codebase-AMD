@@ -13,8 +13,7 @@ import logging
 from collections import Counter 
 import traceback 
 import matplotlib
-# Force matplotlib to not use any Xwindows backend
-matplotlib.use('Agg')
+matplotlib.use('Agg') # Force matplotlib to not use any Xwindows backend
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix, roc_curve, precision_recall_curve, auc
 import pip
@@ -29,17 +28,15 @@ def save_experiment_config(config, report_dir):
         config: Experiment configuration dictionary
         report_dir: Report directory path
     """
-    # Create a serializable copy of the config
+   
     serializable_config = config.copy()
     
-    # Convert any non-serializable values
     for key, value in serializable_config.items():
         if isinstance(value, np.ndarray):
             serializable_config[key] = value.tolist()
         elif not isinstance(value, (str, int, float, bool, list, dict, type(None))):
             serializable_config[key] = str(value)
     
-    # Save to JSON file
     config_path = Path(report_dir) / 'experiment_config.json'
     with open(config_path, 'w') as f:
         json.dump(serializable_config, f, indent=4)
@@ -71,9 +68,7 @@ def save_model_metrics(results, report_dir, model_name):
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     
-    # Extract precision and recall from classification_report if available
     if 'classification_report' in results:
-        # Get weighted avg metrics which includes precision and recall
         if 'weighted avg' in results['classification_report']:
             metrics['precision'] = results['classification_report']['weighted avg']['precision']
             metrics['recall'] = results['classification_report']['weighted avg']['recall']
@@ -86,7 +81,6 @@ def save_model_metrics(results, report_dir, model_name):
     with open(metrics_dir / f"{model_name}_metrics.json", 'w') as f:
         json.dump(metrics, f, indent=4)
     
-    # If detailed metrics are available (like classification report)
     if 'classification_report' in results:
         with open(metrics_dir / f"{model_name}_classification_report.json", 'w') as f:
             json.dump(results['classification_report'], f, indent=4)
@@ -125,7 +119,7 @@ def create_visualization_plots(model, X_train, X_test, y_train, y_test, feature_
     """
     figures_dir = Path(report_dir) / 'figures'
     
-    # 1. Feature Importance (if available)
+    # Feature Importance (if available)
     try:
         if hasattr(model, 'feature_importances_'):
             plt.figure(figsize=(12, 8))
@@ -148,25 +142,18 @@ def create_visualization_plots(model, X_train, X_test, y_train, y_test, feature_
         
         plt.figure(figsize=(8, 6))
         
-        # For binary classification with label encoder
         if len(np.unique(y_test)) == 2 and le is not None:
-            # Get true binary labels
             binary_labels = np.unique(y_test)
             
-            # Handle case where we're doing binary but with the original multiclass data
             if hasattr(le, 'classes_') and len(le.classes_) > 2:
-                # Check if we're doing one vs rest classification
                 unique_pred = np.unique(y_pred)
                 unique_test = np.unique(y_test)
                 
                 if len(unique_pred) <= 2 and len(unique_test) <= 2:
-                    # Create explicit labels for binary case
                     label_map = {0: "Class 0", 1: "Other Classes"}
                     
-                    # Create confusion matrix
                     cm = confusion_matrix(y_test, y_pred)
                     
-                    # Create heatmap with explicit binary labels
                     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                             xticklabels=list(label_map.values()), 
                             yticklabels=list(label_map.values()))
@@ -174,24 +161,19 @@ def create_visualization_plots(model, X_train, X_test, y_train, y_test, feature_
                     plt.ylabel('True')
                     plt.title(f'Confusion Matrix - {model_name}')
                 else:
-                    # Handle as multiclass
-                    # Use original class names from label encoder
                     sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Blues',
                             xticklabels=le.classes_, yticklabels=le.classes_)
                     plt.xlabel('Predicted')
                     plt.ylabel('True')
                     plt.title(f'Confusion Matrix - {model_name}')
             else:
-                # Binary classification with binary labels
                 if hasattr(le, 'classes_'):
                     labels = le.classes_
                 else:
                     labels = [f"Class {i}" for i in binary_labels]
                     
-                # Create confusion matrix
                 cm = confusion_matrix(y_test, y_pred)
                 
-                # Create heatmap with binary labels
                 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                         xticklabels=labels, yticklabels=labels)
                 plt.xlabel('Predicted')
@@ -200,7 +182,6 @@ def create_visualization_plots(model, X_train, X_test, y_train, y_test, feature_
         else:
             # Multiclass case
             if le is not None and hasattr(le, 'classes_'):
-                # Use original class names
                 sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Blues',
                         xticklabels=le.classes_, yticklabels=le.classes_)
             else:
@@ -213,7 +194,6 @@ def create_visualization_plots(model, X_train, X_test, y_train, y_test, feature_
             plt.ylabel('True')
             plt.title(f'Confusion Matrix - {model_name}')
         
-        # Save the figure
         save_figure(plt.gcf(), f"{model_name}_anls_conf_matrix", report_dir)
         plt.close()
     except Exception as e:
@@ -221,7 +201,6 @@ def create_visualization_plots(model, X_train, X_test, y_train, y_test, feature_
         import traceback
         traceback.print_exc()
     
-    # 3. ROC Curve (for binary classification)
     try:
         if len(np.unique(y_test)) == 2 and hasattr(model, 'predict_proba'):
             plt.figure(figsize=(8, 6))
@@ -237,7 +216,6 @@ def create_visualization_plots(model, X_train, X_test, y_train, y_test, feature_
             save_figure(plt.gcf(), f"{model_name}_anls_roc_curve", report_dir)
             plt.close()
             
-            # 4. Precision-Recall Curve
             plt.figure(figsize=(8, 6))
             precision, recall, _ = precision_recall_curve(y_test, y_proba)
             
@@ -250,59 +228,42 @@ def create_visualization_plots(model, X_train, X_test, y_train, y_test, feature_
     except Exception as e:
         print(f"Warning: Could not generate ROC or PR curve. Error: {e}")
     
-    # 5. Learning Curve (simplified version)
-    # Within create_visualization_plots function, in the Learning Curve section:
+
     try:
         from sklearn.model_selection import learning_curve
         
         plt.figure(figsize=(10, 6))
         train_sizes = np.linspace(0.1, 1.0, 10)
         
-        # Check if cv is too large for the minority class
         class_counts = np.bincount(y_train)
-        min_samples = min(class_counts[class_counts > 0])  # Ignore classes with zero samples
+        min_samples = min(class_counts[class_counts > 0]) 
         
-        # Use max 2 splits for very small classes (< 5 samples)
         if min_samples < 5:
             cv = 2
-        # Use 3 splits for small classes (5-10 samples)
         elif min_samples < 10:
             cv = 3
-        # Use default for larger classes
         else:
             cv = 5
 
         print(f"Using {cv}-fold cross-validation (smallest class has {min_samples} samples)")
         
-        # # Adjust cv based on minority class size
-        # cv = 5  # Default
-        # if min_samples < cv:
-        #     # Use at most min_samples splits, but at least 2 if possible
-        #     cv = max(2, min(min_samples, 3))
-        #     print(f"Adjusting cross-validation: Minority class has only {min_samples} samples, using {cv} folds")
-        
-        # # Limit n_jobs to avoid memory issues
         n_jobs = min(2, os.cpu_count() or 1)
         
-        # Calculate learning curve
         train_sizes, train_scores, validation_scores = learning_curve(
             model, X_train, y_train, train_sizes=train_sizes, cv=cv, scoring='f1_weighted',
             n_jobs=n_jobs, shuffle=True, random_state=42
         )
     
-        # Calculate mean and std for training and validation scores
         train_mean = np.mean(train_scores, axis=1)
         train_std = np.std(train_scores, axis=1)
         validation_mean = np.mean(validation_scores, axis=1)
         validation_std = np.std(validation_scores, axis=1)
         
-        # Plot the learning curve
         plt.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, alpha=0.1, color="blue")
         plt.fill_between(train_sizes, validation_mean - validation_std, validation_mean + validation_std, alpha=0.1, color="green")
         plt.plot(train_sizes, train_mean, 'o-', color="blue", label="Training score")
         plt.plot(train_sizes, validation_mean, 's-', color="green", label="Cross-validation score")
         
-        # Plot test score if available
         from sklearn.metrics import f1_score
         test_score = f1_score(y_test, y_pred, average='weighted')
         plt.axhline(y=test_score, color='r', linestyle='-', label=f'Test score: {test_score:.4f}')
@@ -368,30 +329,6 @@ def generate_html_report(report_dir, experiment_config, results):
             except Exception as e:
                 print(f"Error loading figure {fig_path}: {e}")
         
-        # # Extract list of model names from metrics or results
-        # model_names = []
-        # if 'all_models' in results and results['all_models']:
-        #     model_names = list(results['all_models'].keys())
-        # else:
-        #     # Try to get model names from metrics directory
-        #     metrics_dir = Path(report_dir) / 'metrics'
-        #     metric_files = list(metrics_dir.glob('*_metrics.json'))
-        #     for metric_file in metric_files:
-        #         model_name = metric_file.stem.replace('_metrics', '')
-        #         if model_name not in model_names:
-        #             model_names.append(model_name)
-        
-                    
-            # # Try to identify model names from figures
-            # if not model_names:
-            #     for fig_name in all_figures:
-            #         parts = fig_name.split('_')
-            #         if len(parts) > 1:
-            #             potential_model = ' '.join(parts[:-1])
-            #             if potential_model not in model_names:
-            #                 model_names.append(potential_model)
-            
-        # Extract list of model names from metrics or results
         model_names = []
         if 'all_models' in results:
             model_names = list(results['all_models'].keys())
@@ -404,102 +341,22 @@ def generate_html_report(report_dir, experiment_config, results):
                 if model_name not in model_names:
                     model_names.append(model_name)
         
-        # Initialize model figures dictionary
+        # Initialize 
         for model_name in model_names:
             model_figures[model_name] = {'plots': [], 'shap': []}
             
-        # # First categorize overview figures
-        # for fig_name, fig_data in all_figures.items():
-        #     fig_name_lower = fig_name.lower()
-            
-        #     # Overview figures
-        #     if ("class_distribution" in fig_name_lower or 
-        #         "model_comparison" in fig_name_lower or 
-        #         "confusion_matrix_comparison" in fig_name_lower):
-        #         overview_figures.append(fig_data)
-        #         print(f"Added to overview figures: {fig_name}")
-        #         continue
-
-        # # Next, categorize SHAP figures and assign to models
-        # for fig_name, fig_data in all_figures.items():
-        #     fig_name_lower = fig_name.lower()
-            
-        #     # Skip figures already categorized
-        #     if fig_data in overview_figures:
-        #         continue
-            
-        #     # Check if it's a SHAP/importance figure
-        #     is_shap = any(term in fig_name_lower for term in [
-        #         'shap', 'waterfall', 'force', 'beeswarm', 
-        #         'feature_importance', 'importance', 'coefficient'
-        #     ])
-            
-        #     if is_shap:
-        #         # Try to find which model it belongs to
-        #         model_found = False
-        #         for model_name in model_names:
-        #             model_variants = [
-        #                 model_name.lower(),
-        #                 model_name.replace(' ', '_').lower(),
-        #                 model_name.replace(' ', '').lower(),
-        #                 ''.join(word[0].lower() for word in model_name.split())  # acronym
-        #             ]
-                    
-        #             if any(variant in fig_name_lower for variant in model_variants):
-        #                 # Add to model's SHAP figures
-        #                 model_figures[model_name]['shap'].append(fig_data)
-        #                 print(f"Added to {model_name} SHAP figures: {fig_name}")
-        #                 model_found = True
-        #                 break
-                
-        #         # If no model was found, add to general SHAP figures
-        #         if not model_found:
-        #             shap_figures.append(fig_data)
-        #             print(f"Added to general SHAP figures: {fig_name}")
-                
-        #         # Skip further processing for this figure
-        #         continue
-
-        # # Finally categorize other model-specific figures
-        # for fig_name, fig_data in all_figures.items():
-        #     fig_name_lower = fig_name.lower()
-            
-        #     # Skip figures already categorized
-        #     if (fig_data in overview_figures or 
-        #         fig_data in shap_figures or 
-        #         any(fig_data in figs.get('shap', []) for figs in model_figures.values())):
-        #         continue
-            
-        #     # Try to find which model it belongs to
-        #     for model_name in model_names:
-        #         model_variants = [
-        #             model_name.lower(),
-        #             model_name.replace(' ', '_').lower(),
-        #             model_name.replace(' ', '').lower(),
-        #             ''.join(word[0].lower() for word in model_name.split())  # acronym
-        #         ]
-                
-        #         if any(variant in fig_name_lower for variant in model_variants):
-        #             # Add to model's regular plots
-        #             model_figures[model_name]['plots'].append(fig_data)
-        #             print(f"Added to {model_name} regular plots: {fig_name}")
-        #             break
-        
-        # More robust categorization
+      
         for fig_name, fig_data in all_figures.items():
             fig_name_lower = fig_name.lower()
             
-            # Overview figures
             if ("class_distribution" in fig_name_lower or 
                 "model_comparison" in fig_name_lower or 
                 "confusion_matrix_comparison" in fig_name_lower):
                 overview_figures.append(fig_data)
                 continue
             
-            # Check each model name
             matched_model = None
             for model_name in model_names:
-                # Try different forms of the model name
                 model_variations = [
                     model_name.lower(),
                     model_name.replace(' ', '_').lower(),
@@ -511,17 +368,14 @@ def generate_html_report(report_dir, experiment_config, results):
                     break
             
             if matched_model:
-                # Figure belongs to a specific model
                 if "shap" in fig_name_lower:
                     model_figures[matched_model]['shap'].append(fig_data)
                 else:
                     model_figures[matched_model]['plots'].append(fig_data)
             else:
-                # General SHAP figure not associated with a model
                 if "shap" in fig_name_lower:
                     shap_figures.append(fig_data)
 
-        
         # Load consolidated metrics
         all_metrics_file = Path(report_dir) / 'metrics' / 'all_model_metrics.json'
         if all_metrics_file.exists():
@@ -553,7 +407,6 @@ def generate_html_report(report_dir, experiment_config, results):
                 best_model_name = results.get('best_model_name', '')
         else:
             print(f"Warning: Consolidated metrics file not found at {all_metrics_file}")
-            # Fall back to loading individual metrics files
             metrics_dir = Path(report_dir) / 'metrics'
             metrics_files = list(metrics_dir.glob('*_metrics.json'))
             
@@ -564,7 +417,6 @@ def generate_html_report(report_dir, experiment_config, results):
                 with open(metrics_file, 'r') as f:
                     metrics.append(json.load(f))
                 
-                # Check if there's a classification report for this model
                 report_file = metrics_dir / f"{model_name}_classification_report.json"
                 if report_file.exists():
                     with open(report_file, 'r') as f:
@@ -572,7 +424,6 @@ def generate_html_report(report_dir, experiment_config, results):
             
             best_model_name = results.get('best_model_name', '')
         
-        # Sort metrics by F1 score (descending)
         metrics.sort(key=lambda x: x.get('f1_score', 0), reverse=True)
         
         # Debug information for troubleshooting
@@ -851,10 +702,8 @@ def generate_html_report(report_dir, experiment_config, results):
             
             return "\n".join(formatted)
         
-        # Check if we have any SHAP analyses
         has_shap_plots = any(len(figs.get('shap', [])) > 0 for figs in model_figures.values())
         
-        # Render HTML
         template = Template(html_template)
         html_content = template.render(
             config=json.dumps(experiment_config, indent=4),
@@ -896,16 +745,13 @@ def create_report_directory(base_dir="reports", experiment_name=None):
         report_dir: Path to the report directory
         subdirs: Dictionary of subdirectories
     """
-    # Create experiment name with timestamp if not provided
     if experiment_name is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         experiment_name = f"experiment_{timestamp}"
     
-    # Create main report directory
     report_dir = Path(base_dir) / experiment_name
     report_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create subdirectories
     subdirs = {
         'figures': report_dir / 'figures',
         'models': report_dir / 'models',
@@ -913,7 +759,6 @@ def create_report_directory(base_dir="reports", experiment_name=None):
         'data': report_dir / 'data'
     }
     
-    # Create each subdirectory
     for subdir in subdirs.values():
         subdir.mkdir(exist_ok=True)
     

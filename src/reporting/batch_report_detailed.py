@@ -2,12 +2,12 @@ import os
 import json
 import pandas as pd
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader, Template # Added Template for inline definition
+from jinja2 import Environment, FileSystemLoader, Template 
 from datetime import datetime
-import traceback # For more detailed error messages
-import base64 # To embed images 
+import traceback 
+import base64 
 
-# --- Helper function to safely get nested dictionary values ---
+#  Helper function to safely get nested dictionary values 
 def safe_get(data, keys, default=None):
     """Safely retrieve nested dictionary values."""
     if not isinstance(data, dict):
@@ -18,12 +18,11 @@ def safe_get(data, keys, default=None):
             temp = temp[key]
         else:
             return default
-    # Ensure the final value is JSON serializable for the config part
     if not isinstance(temp, (str, int, float, bool, list, dict, type(None))):
         return str(temp)
     return temp
 
-# --- Helper Function to format Classification Report ---
+#  Helper Function to format Classification Report 
 def format_classification_report_dict(report_dict):
     """Formats a classification report dictionary into a preformatted string."""
     if not isinstance(report_dict, dict):
@@ -50,7 +49,6 @@ def format_classification_report_dict(report_dict):
              line_items = [key, precision, recall, f1_score, support]
              output_lines.append("".join([f"{item:<{w}}" for item, w in zip(line_items, col_widths)]))
 
-    # Separator
     output_lines.append("-" * sum(col_widths))
 
     # Summary metrics
@@ -72,7 +70,6 @@ def format_classification_report_dict(report_dict):
     return "\n".join(output_lines)
 
 
-# --- Main Function to Generate Detailed Batch Report ---
 def generate_detailed_batch_report(batch_dir_path_str):
     """
     Generates a detailed HTML report aggregating results from multiple
@@ -88,9 +85,8 @@ def generate_detailed_batch_report(batch_dir_path_str):
         return
 
     print(f"Starting detailed batch report generation for: {batch_dir}")
-    all_experiments_data = [] # List to hold data for each experiment
+    all_experiments_data = [] 
 
-    # Find experiment directories
     experiment_dirs = sorted([d for d in batch_dir.iterdir() if d.is_dir() and d.name.startswith('experiment_')])
 
     if not experiment_dirs:
@@ -99,21 +95,19 @@ def generate_detailed_batch_report(batch_dir_path_str):
 
     print(f"Found {len(experiment_dirs)} experiment directories.")
 
-    # --- Loop through each experiment directory ---
     for exp_dir in experiment_dirs:
         print(f"\nProcessing experiment: {exp_dir.name}")
         exp_data = {
             'experiment_name': exp_dir.name,
             'config': "N/A",
-            'metrics': [], # List of dicts, one per model
-            'model_reports': {}, # Dict: {model_name: report_dict}
+            'metrics': [], 
+            'model_reports': {}, 
             'overview_figures': [],
-            'model_figures': {}, # Dict: {model_name: {'plots': [], 'shap': []}}
+            'model_figures': {}, 
             'general_shap_figures': [],
             'best_model_name': None
         }
 
-        # --- 1. Load Config ---
         config_path = exp_dir / 'experiment_config.json'
         if config_path.exists():
             try:
@@ -128,7 +122,6 @@ def generate_detailed_batch_report(batch_dir_path_str):
             print(f"  Warning: Config file not found: {config_path}")
             exp_data['config'] = "Config file not found."
 
-        # --- 2. Load Metrics and Classification Reports ---
         metrics_dir = exp_dir / 'metrics'
         model_names_found = set()
 
@@ -196,8 +189,6 @@ def generate_detailed_batch_report(batch_dir_path_str):
         model_names_in_order = [m['model_name'] for m in exp_data['metrics']]
         print(f"  Loaded metrics for models: {model_names_in_order}")
 
-
-        # --- 3. Find and Categorize Figures ---
         figures_dir = exp_dir / 'figures'
         if figures_dir.is_dir():
             all_figure_files = list(figures_dir.glob('*.png'))
@@ -263,8 +254,7 @@ def generate_detailed_batch_report(batch_dir_path_str):
         print("-" * 20)
 
 
-    # --- 4. Define Detailed HTML Template ---
-    # NOTE: This is a long string. Ensure it's correctly formatted in your Python file.
+    #  HTML Template 
     detailed_batch_template_str = """
 <!DOCTYPE html>
 <html lang="en">
@@ -319,7 +309,7 @@ def generate_detailed_batch_report(batch_dir_path_str):
                 <div class="summary-box">
                     <h4>Best Model: <span style="font-weight:bold; color:#198754;">{{ experiment.best_model_name if experiment.best_model_name else 'N/A' }}</span></h4>
 
-                    {# --- CORRECTED SECTION to find and display best_metrics --- #}
+                    {#  CORRECTED SECTION to find and display best_metrics  #}
                     {% set best_metrics = experiment.metrics | selectattr('model_name', 'equalto', experiment.best_model_name) | first %}
 
                     {% if best_metrics %}
@@ -338,7 +328,7 @@ def generate_detailed_batch_report(batch_dir_path_str):
                              <p>Best model name not determined for this experiment.</p>
                          {% endif %}
                     {% endif %}
-                    {# --- END CORRECTION --- #}
+                    {#  END CORRECTION  #}
                 </div>
                 <h4>Configuration</h4>
                 <pre class="config-pre">{{ experiment.config }}</pre>
@@ -391,7 +381,7 @@ def generate_detailed_batch_report(batch_dir_path_str):
                  </table>
                  <h4>Model Comparison Plot</h4>
                  <div class="figure-container">
-                    {# --- CORRECTED WAY to find model comparison plots --- #}
+                    {#  CORRECTED WAY to find model comparison plots  #}
                     {% set found_comparison_plot = false %} {# Flag to check if any were found #}
                     {% for figure in experiment.overview_figures %}
                         {# Check if 'model_comparison' is in the figure name (case-insensitive) #}
@@ -407,7 +397,7 @@ def generate_detailed_batch_report(batch_dir_path_str):
                     {% if not found_comparison_plot %}
                          <p>Model comparison plot not found.</p>
                     {% endif %}
-                    {# --- END CORRECTION --- #}
+                    {#  END CORRECTION  #}
                  </div>
             </div>
 
@@ -501,20 +491,17 @@ def generate_detailed_batch_report(batch_dir_path_str):
 """
 
     try:
-        # Use Jinja2 Template directly with the string
         template = Template(detailed_batch_template_str)
 
         generation_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # Render the template
         html_content = template.render(
             batch_name=batch_dir.name,
-            all_experiments_data=all_experiments_data, # Pass the detailed list
+            all_experiments_data=all_experiments_data, 
             generation_time=generation_time_str,
-            format_classification_report=format_classification_report_dict # Pass helper function
+            format_classification_report=format_classification_report_dict
         )
 
-        # Save the detailed batch summary report
         report_path = batch_dir / 'batch_summary_detailed.html' # Use a different name
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -526,10 +513,8 @@ def generate_detailed_batch_report(batch_dir_path_str):
 
 
 
-# --- Example of how to call this function ---
 if __name__ == "__main__":
-    # IMPORTANT: Replace with the actual path to your batch directory
-    target_batch_directory = "reports/batch_experiments/batch_20250409_202555" # Example path
+    target_batch_directory = "reports/batch_experiments/batch_20250409_202555" # Update path
 
     if Path(target_batch_directory).is_dir():
         generate_detailed_batch_report(target_batch_directory)

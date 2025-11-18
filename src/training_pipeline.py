@@ -19,10 +19,7 @@ import xgboost as xgb
 from datetime import datetime
 from sklearn.model_selection import train_test_split
 import logging
-# Option 1: Allow Warnings and Errors (Recommended)
 logging.getLogger('shap').setLevel(logging.WARNING)
-# Option 2: Allow only Errors (Even less output)
-# logging.getLogger('shap').setLevel(logging.ERROR)
 import traceback
 
 
@@ -39,18 +36,11 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         best_model: Best model
         results: Dictionary of results
     """
-    # Import functions from the main module
     from .core_logic import (
         run_classification_pipeline, prepare_data, set_seeds, 
         train_evaluate_model, save_best_model, plot_class_distribution,
         analyze_feature_group_importance, run_shap_analysis, plot_learning_curve, analyze_feature_group_zones
     )
-    
-    # Import our new report generation functions
-    # from reporting.batch_report_detailed import (
-    #     save_experiment_config, save_model_metrics,
-    #     generate_html_report, save_figure, format_classification_report_dict
-    # )
     
     from .reporting.utils import (
     create_report_directory, save_experiment_config, save_model_metrics,
@@ -130,7 +120,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         transform_features=transform_features
     )
 
-    # --- START >>  Save LE and Scaler ---
+    #    START >>  Save LE and Scaler   
     data_dir = subdirs['data'] 
     scaler_path = None
 
@@ -207,8 +197,8 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
     )
     
     
-    # --- START: Enhanced Overfitting Gap Calculation ---
-    print("\n--- Calculating Overfitting Gap ---")
+    #    START: Enhanced Overfitting Gap Calculation   
+    print("\n--- Calculating Overfitting Gap   ")
     train_f1 = 0.0   
     # If it returns e.g., 'test_f1_score', use that key instead.
     # test_f1 = results.get('f1_score', None)
@@ -222,7 +212,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
     y_train_eval = None
     can_calculate = False
 
-    # --- Step 1: Verify Availability of Required Data ---
+    #    Step 1: Verify Availability of Required Data   
     print("  Verifying data required for gap calculation...")
     print(f"    Available keys in results: {list(results.keys())}")
     if best_model_name is None:
@@ -244,7 +234,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
             X_train_eval = results['X_train']
             y_train_eval = results['y_train']
 
-            # --- Step 2: Validate Retrieved Data ---
+            #    Step 2: Validate Retrieved Data   
             print("    Data retrieved. Validating contents...")
             if best_model_instance is None:
                  print("    ERROR: Retrieved best_model_instance is None.")
@@ -266,7 +256,6 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                  print(f"      Model Type: {type(best_model_instance)}")
                  print(f"      X_train shape: {X_train_eval.shape}")
                  print(f"      y_train shape: {y_train_eval.shape}, Unique labels: {np.unique(y_train_eval)}")
-                 # Important: Check if y_train labels match expectations (e.g., post-sampling if applicable)
 
         except KeyError as ke:
             print(f"    ERROR retrieving data (KeyError): {ke}")
@@ -274,7 +263,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
             print(f"    ERROR during data retrieval/validation: {val_e}")
             traceback.print_exc()
     from sklearn.metrics import f1_score
-    # --- Step 3: Perform Calculation (only if possible) ---
+    #    Step 3: Perform Calculation (only if possible)   
     if can_calculate:
         train_f1 = 0.0 # Initialize
         try:
@@ -308,18 +297,14 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         train_f1 = 0.0 # Ensure defaults are set if skipped
         overfitting_gap = 0.0
 
-    # Add/Update these metrics in the main results dictionary
     results['train_f1'] = train_f1
-    # results['test_f1'] = test_f1 if test_f1 is not None else 0.0 # Store test F1 used (or 0 if None)
-    results['test_f1'] = test_f1 # Store the float version
+    results['test_f1'] = test_f1 
     results['overfitting_gap'] = overfitting_gap  
     
-    
-    # Extract trained models, accuracies, and f1 scores
     trained_models = results.get('trained_models', {})
     accuracies = results.get('accuracies', {})
     f1_scores = results.get('f1_scores', {})
-    roc_auc_scores = results.get('roc_auc_scores', {}) # Added
+    roc_auc_scores = results.get('roc_auc_scores', {}) 
     avg_precision_scores = results.get('avg_precision_scores', {}) 
     
     # Find the best model name
@@ -340,9 +325,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
             top_models_saved.append(model_name)
             print(f"Saved {model_name} to {model_path} (Top {i+1} model, F1={f1_score:.4f})")
             
-            # Run feature group importance for this model if it's a tree-based model
             if analyze_shap: 
-            # and isinstance(model, (RandomForestClassifier, GradientBoostingClassifier, xgb.XGBClassifier)):
                 try:
                     print(f"\nAnalyzing feature group importance for {model_name} (Top {i+1} model)...")
                     analyze_feature_group_importance(
@@ -368,20 +351,16 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         'models': {}
     }
 
-    # If SHAP analysis is requested for the best model
-
     if analyze_shap and best_model is not None:
         print(f"\nPerforming SHAP and Group Importance analysis on top models...")
 
-        # --- Define Feature Names and Grouping ---
+        #    Define Feature Names and Grouping   
         metrics = ['mean', 'med', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
         num_zones = 20
         num_base_features = len(metrics)
         values_per_group_def = num_zones
 
-        # feature_names = [f'{m}_Z{i+1}' for m in metrics for i in range(num_zones)]
-        # Alternative using feature indices
-        # Check if feature_indices is provided in the config
+ 
         if feature_indices is not None:
             # Generate feature names only for the selected feature indices
             selected_feature_names = []
@@ -398,36 +377,20 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
             # Generate all feature names
             feature_names = [f'{m}_Z{i+1}' for m in metrics for i in range(num_zones)]
         
-        
-        # Ensure feature_names matches X_test.shape[1] if possible, otherwise run_shap_analysis handles it.
+   
         if len(feature_names) != X_test.shape[1]:
             print(f"Warning: Generated feature names ({len(feature_names)}) mismatch X_test columns ({X_test.shape[1]}). Check generation logic.")
             # Fallback: Generate generic names if mismatch is critical
             feature_names = [f'feat_{i}' for i in range(X_test.shape[1])]
-            # Try to adjust based on what might have happened:
-            # if len(feature_names) > X_test.shape[1]:
-            #     # Too many names - truncate
-            #     print(f"Truncating feature names to match X_test columns")
-            #     feature_names = feature_names[:X_test.shape[1]]
-            # else:
-            #     # Too few names - extend with generic names for the remaining columns
-            #     print(f"Extending feature names with generic names for {X_test.shape[1] - len(feature_names)} columns")
-            #     missing_count = X_test.shape[1] - len(feature_names)
-            #     feature_names.extend([f'extra_feature_{i}' for i in range(missing_count)])
-
-
-        # --- Define how many top models to analyze ---
+            
         num_models_to_analyze = min(3, len(sorted_models)) # Max 3 if needed
 
-        # --- Loop through top models ---
+        #    Loop through top models   
         for i, (model_name, f1_score) in enumerate(sorted_models[:num_models_to_analyze]):
-            print(f"\n--- Analyzing Model {i+1}/{num_models_to_analyze} {model_name} ---")
+            print(f"\n--- Analyzing Model {i+1}/{num_models_to_analyze} {model_name}   ")
             model = trained_models[model_name]
             
-            # num_classes = len(le.classes_) if le else (model.n_classes_ if hasattr(model, 'n_classes_') else np.max(y_test)+1) # Estimate num_classes
-            
-            #--- take is_binary flag start # 
-            is_model_binary_from_config = kwargs.get('is_binary', True) # Get from original config
+            is_model_binary_from_config = kwargs.get('is_binary', True) 
             print(f"  DEBUG: Config 'is_binary' = {is_model_binary_from_config}") # Debug print
 
             class_indices_to_analyze = []
@@ -447,16 +410,13 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
             # Define SHAP report directory for this specific model
             shap_report_dir = Path(report_dir) / f"shap_{model_name.replace(' ', '_').lower()}"
             shap_report_dir.mkdir(parents=True, exist_ok=True)
-            # is_model_binary = (num_classes == 2) 
-
-            # Check compatibility (mainly for specific plots like beeswarm, though TreeExplainer is preferred)
+  
             base_model_check = model.steps[-1][1] if isinstance(model, Pipeline) else model
             is_tree_based = False
             if xgb and isinstance(base_model_check, xgb.XGBClassifier): is_tree_based = True
             if isinstance(base_model_check, (RandomForestClassifier, GradientBoostingClassifier)): is_tree_based = True
 
-            try:
-                # --- Run Standard SHAP Plots ---
+            try: 
                 plot_types_standard = ['bar', 'summary']
                 for plot_type in plot_types_standard:
                     run_shap_analysis(
@@ -471,9 +431,8 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                         y_test=y_test
                         
                     )
-
-                # --- Run Sample-Specific SHAP Plots ---
-                sample_idx_to_plot = 0 # Plot for the first sample
+  
+                sample_idx_to_plot = 0 
                 plot_types_sample = ['waterfall', 'grouped_waterfall'] # Add the new grouped plot
                 for plot_type in plot_types_sample:
                     run_shap_analysis(
@@ -482,7 +441,6 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                         sample_idx=sample_idx_to_plot,
                         plot_type=plot_type,
                         report_dir=report_dir,
-                        # Pass grouping parameters needed for grouped_waterfall
                         num_feature_groups=num_base_features,
                         values_per_group=values_per_group_def,
                         group_metrics=metrics,
@@ -490,7 +448,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                         y_test=y_test
                     )
 
-                # --- Run Advanced/Specific SHAP Plots (Conditional) ---
+                #    Run Advanced/Specific SHAP Plots (Conditional)   
                 if is_tree_based: # Beeswarm often most insightful for trees
                     run_shap_analysis(
                         model, X_test,
@@ -502,28 +460,8 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                         group_metrics=metrics,
                         is_binary=is_binary,
                         y_test=y_test
-                    )
-                # Add force plot if desired (can be slow/layout challenging)
-                # run_shap_analysis(model, X_test, feature_names=feature_names, sample_idx=sample_idx_to_plot, plot_type='force', report_dir=report_dir),
-                        # is_binary=is_binary,
-                        # y_test=y_test
-
-                    # --- Run Class-Specific Analysis ---
+                    ) 
                 print(f"  Running class-specific analysis (Binary Mode: {is_model_binary_from_config})...")
-                # class_indices_to_analyze = []
-                # if is_model_binary_from_config:
-                #     # For binary, analyze the positive class (index 1)
-                #     class_indices_to_analyze = [1]
-                #     print(f"    SHAP Class Analysis: Binary mode. Targeting positive class (index 1).")
-                # else:# For multiclass, analyze all classes
-                #     # class_indices_to_analyze = list(range(num_classes_for_shap))
-                #     # print(f"    Targeting all {num_classes_for_shap} classes for multi-class model.")
-                #     # if le and hasattr(le, 'classes_'):
-                #     #     num_classes_for_shap = len(le.classes_)
-                #     # else:
-                #         # num_classes_for_shap = num_classes_for_shap
-                #     class_indices_to_analyze = list(range(num_classes_for_shap))
-                #     print(f"  SHAP Class Analysis: Multiclass mode. Targeting {num_classes_for_shap} classes ({class_indices_to_analyze}).")
 
                 for class_idx in class_indices_to_analyze:
                     if class_idx >= num_classes_for_shap:
@@ -535,7 +473,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                     class_shap_report_dir.mkdir(parents=True, exist_ok=True)
 
                     try:
-                        # --- Grouped Waterfall Plot ---
+                        #    Grouped Waterfall Plot   
                         print(f"      Generating grouped waterfall plot for sample 0, class {class_idx}...")
                         run_shap_analysis(
                             model, X_test,
@@ -551,7 +489,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                             group_metrics=metrics
                         )
 
-                        # --- Feature Group Importance Analysis ---
+                        #    Feature Group Importance Analysis   
                         print(f"      Analyzing feature group importance for class {class_idx}...")
                         analyze_feature_group_importance(
                             model,
@@ -564,20 +502,9 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                             y_test=y_test 
                         )
 
-                        # --- Zone Importance Analysis ---
+                        #    Zone Importance Analysis   
                         # Example: Analyze 'skew' feature zones
                         print(f"      Analyzing zone importance for 'skew' features, class {class_idx}...")
-                        # analyze_feature_group_zones(
-                        #     model,
-                        #     X_test,
-                        #     feature_names,
-                        #     feature_indices=feature_indices,
-                        #     group_name="skew", # Or loop through desired groups
-                        #     report_dir=class_shap_report_dir, # Save to class-specific dir
-                        #     class_index=class_idx # Specify class
-                        # )
-                        # Add other zone analyses (e.g., 'med') here if needed
-                        # For standard bar plot (original behavior)
                         analyze_feature_group_zones(model, X_test, feature_names, feature_indices=feature_indices,
                             group_name="skew", # Or loop through desired groups
                             report_dir=class_shap_report_dir, # Save to class-specific dir
@@ -607,7 +534,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
                 print(f"!! Skipping remaining analysis for {model_name}")
 
 
-        print("\n--- SHAP and Group Importance Analysis Complete ---")
+        print("\n--- SHAP and Group Importance Analysis Complete   ")
 
     else:
         if not analyze_shap:
@@ -632,8 +559,8 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         model_results = {
             'accuracy': accuracies.get(model_name, 0),
             'f1_score': f1_scores.get(model_name, 0),
-            'roc_auc_score': roc_auc_scores.get(model_name, 0.0),  # Added
-            'avg_precision_score': avg_precision_scores.get(model_name, 0.0),# Added
+            'roc_auc_score': roc_auc_scores.get(model_name, 0.0), 
+            'avg_precision_score': avg_precision_scores.get(model_name, 0.0),
             'is_best_model': model_name == best_model_name,
             'classification_report': classification_report(
                 y_test, 
@@ -662,19 +589,13 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
     models = list(accuracies.keys())
     acc_values = [accuracies[m] for m in models]
     f1_values = [f1_scores[m] for m in models]
-    roc_auc_values = [roc_auc_scores.get(m, 0.0) for m in models] # added
-    # avg_prec_values = [avg_precision_scores.get(m, 0.0) for m in models] # 
-
+    roc_auc_values = [roc_auc_scores.get(m, 0.0) for m in models] 
     
     x = np.arange(len(models))
     width = 0.25
     
     plt.bar(x - width/2, acc_values, width, label='Accuracy')
     plt.bar(x + width/2, f1_values, width, label='F1 Score')
-    # plt.bar(x+ width/2, roc_auc_values, width, label='ROC AUC') # New
-    # plt.bar(x_indices + 2*width_bar, avg_prec_values_list, width_bar, label='Avg Precision') # New (optional)
-
-    
     plt.xlabel('Models')
     plt.ylabel('Score')
     plt.title('Model Performance Comparison')
@@ -704,7 +625,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         'trained_models': trained_models,
         'accuracies': accuracies,
         'f1_scores': f1_scores,
-        'roc_auc_scores': roc_auc_scores, # added
+        'roc_auc_scores': roc_auc_scores,
         'avg_precision_scores': avg_precision_scores,
         'X_train': X_train,
         'X_test': X_test,

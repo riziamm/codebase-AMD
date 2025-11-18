@@ -45,13 +45,13 @@ import matplotlib.patches as patches
 import matplotlib.colors as colors
 import math
 import logging
-# Configure a basic logger for demonstration
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('shap').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+from report_generation import save_figure
 
-# Set random seeds for reproducibility
+
 def set_seeds(seed=42):
     """
     Set random seeds for reproducibility across all libraries
@@ -69,16 +69,9 @@ def sort_feature_values(X, num_features, values_per_feature=20, ascending_featur
     """
     Sort values within each feature set with flexible ordering options.
     """
-    # Make a copy to avoid modifying the original array
     X_copy = X.copy()
-    
-    # Calculate actual number of features from the data shape
     n_samples = X_copy.shape[0]
     total_columns = X_copy.shape[1]
-    
-    
-    # Use the num_features passed as argument. Do NOT auto-detect/overwrite it here
-    # when feature_indices might have been used upstream.
     actual_num_features = num_features
     print(f"Debug - Using num_features passed to function: {actual_num_features}")
 
@@ -88,8 +81,6 @@ def sort_feature_values(X, num_features, values_per_feature=20, ascending_featur
     elif total_columns != actual_num_features * values_per_feature:
          print(f"Warning - Input data columns ({total_columns}) do not match expected columns for {actual_num_features} features ({actual_num_features * values_per_feature})")
 
-    # --- END MODIFICATION ---
-    
     expected_elements = n_samples * actual_num_features * values_per_feature
     actual_elements = X_copy.size
     
@@ -176,7 +167,6 @@ def sort_feature_values(X, num_features, values_per_feature=20, ascending_featur
     # Reshape back to original shape
     return X_reshaped.reshape(X_copy.shape[0], -1)
 
-# prepare_data function accepts sort_features as a string parameter
 def prepare_data(df, num_features=9, values_per_feature=20,
                  normalization='standard', is_binary=True,
                  preserve_zones=True, feature_indices=None, sort_features='none', transform_features=False):
@@ -186,7 +176,6 @@ def prepare_data(df, num_features=9, values_per_feature=20,
     print(f"DEBUG: Inside prepare_data. feature_indices = {feature_indices}, num_features (default/passed) = {num_features}")
     print(f"DEBUG: Input df shape: {df.shape}") # Check input shape early
 
-    # --- Determine actual_num_features FIRST ---
     if feature_indices is not None:
         # Ensure feature_indices is a list-like structure
         if not hasattr(feature_indices, '__iter__') or isinstance(feature_indices, (str, bytes)):
@@ -285,17 +274,11 @@ def prepare_data(df, num_features=9, values_per_feature=20,
                  print(f"DEBUG: Recalculated actual_num_features based on selected columns: {actual_num_features}")
             else:
                  print(f"WARNING: Selected columns ({X.shape[1]}) not perfectly divisible by values_per_feature ({values_per_feature}). Feature structure might be incorrect.")
-                 # Keep the initially assumed actual_num_features or decide how to handle
-                 # For safety, might be better to raise error if structure is expected:
-                 # raise ValueError(f"Selected columns ({X.shape[1]}) not divisible by values_per_feature ({values_per_feature})")
         else:
             print("WARNING: values_per_feature is zero or negative, cannot determine features from columns.")
             # Keep actual_num_features as initially assumed or handle error
         print(f"DEBUG: Shape of X using all features: {X.shape}")
 
-
-    # --- Target Variable ---
-    # Extract target variable (assuming it's the LAST column)
     try:
         y = df.iloc[:, -1].values
     except IndexError:
@@ -304,8 +287,6 @@ def prepare_data(df, num_features=9, values_per_feature=20,
     if X.shape[0] != y.shape[0]:
         raise ValueError(f"Mismatch between number of samples in X ({X.shape[0]}) and y ({y.shape[0]})")
 
-
-    # --- Label Encoding & Binary Conversion ---
     le = LabelEncoder()
     try:
         y = le.fit_transform(y)
@@ -319,9 +300,6 @@ def prepare_data(df, num_features=9, values_per_feature=20,
 
     print("Class distribution in y:", Counter(y))
 
-    # --- Apply Sorting ---
-    # This section assumes sort_feature_values is correctly defined elsewhere
-    # and handles the reshaping and sorting based on the num_features it receives.
     if sort_features != 'none':
         print(f"DEBUG: Applying sorting. Sort config: {sort_features}")
         print(f"DEBUG: Value of actual_num_features JUST BEFORE calling sort_feature_values: {actual_num_features}")
@@ -345,13 +323,11 @@ def prepare_data(df, num_features=9, values_per_feature=20,
             ascending_features_to_pass = [0, 1] if actual_num_features > 1 else ([0] if actual_num_features == 1 else [])
             descending_features_to_pass = [2] if actual_num_features > 2 else []
         elif isinstance(sort_features, dict):
-            # Map original indices from dict to local indices
             original_ascending = sort_features.get('ascending', [])
             original_descending = sort_features.get('descending', [])
             original_unsorted = sort_features.get('unsorted', [])
 
             if feature_indices is not None:
-                # Create mapping from original to local indices
                 feature_map = {orig_idx: local_idx for local_idx, orig_idx in enumerate(feature_indices)}
                 print(f"DEBUG: Feature index map: {feature_map}")
 
@@ -370,9 +346,7 @@ def prepare_data(df, num_features=9, values_per_feature=20,
              print(f"WARNING: Unknown sort_features type or value: {sort_features}. No sorting applied.")
 
 
-        # Call the sorting function
         try:
-             # Ensure sort_feature_values is defined and imported
              X = sort_feature_values(X, num_features=actual_num_features,
                                      values_per_feature=values_per_feature,
                                      ascending_features=ascending_features_to_pass,
@@ -384,20 +358,16 @@ def prepare_data(df, num_features=9, values_per_feature=20,
               raise
         except Exception as e:
               print(f"ERROR during sort_feature_values call: {e}")
-              raise # Re-raise the original error after printing context
-
+              raise 
     else:
          print("No sorting applied.")
 
 
-    # --- Feature Name Generation ---
-    # Base names - adjust if your features represent different things
+    #   Feature Name Generation  
     base_metric_names = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
     actual_group_metrics = []
     
-    # Check if actual_num_features matches the expected number based on metrics
     if feature_indices is not None: 
-         # Use metric names corresponding to selected feature indices
          feature_names = [f'{base_metric_names[feat_idx]}_Z{zone_idx+1}' for feat_idx in feature_indices for zone_idx in range(values_per_feature)] 
          actual_group_metrics = [base_metric_names[feat_idx] for feat_idx in feature_indices] #
     elif actual_num_features != len(base_metric_names): 
@@ -405,19 +375,16 @@ def prepare_data(df, num_features=9, values_per_feature=20,
          if abs(actual_num_features - len(base_metric_names)) > 1: # Use generic names if mismatch is significant
              feature_names = [f'F{feat_idx}_Z{zone_idx+1}' for feat_idx in range(actual_num_features) for zone_idx in range(values_per_feature)] 
              actual_group_metrics = [f'F{feat_idx}' for feat_idx in range(actual_num_features)] 
-         else: # Assume metrics list might be slightly off, use actual_num_features
+         else: 
              feature_names = [f'{base_metric_names[feat_idx]}_Z{zone_idx+1}' for feat_idx in range(actual_num_features) for zone_idx in range(values_per_feature)] 
              actual_group_metrics = base_metric_names[:actual_num_features] #
-    else: # for feature_indices None, use actual_num_features if matches len(base_metric_names)
+    else: 
          feature_names = [f'{base_metric_names[feat_idx]}_Z{zone_idx+1}' for feat_idx in range(actual_num_features) for zone_idx in range(values_per_feature)] 
          actual_group_metrics = base_metric_names[:actual_num_features] #
 
     print(f"DEBUG: Generated {len(feature_names)} feature names. First few: {feature_names[:5]}...") 
     print(f"DEBUG: Actual group metrics used: {actual_group_metrics}")
 
-
-    # --- Feature Transformation (Optional) ---
-    # create_feature_transformations handles fitting and transforming correctly
     if transform_features:
         print(f"Applying feature transformations for {actual_num_features} features...")
         try:
@@ -431,7 +398,7 @@ def prepare_data(df, num_features=9, values_per_feature=20,
         except Exception as e:
              print(f"Error during feature transformation: {e}")
 
-    # --- Normalization ---
+    #   Normalization  
     if normalization != 'none':
         print(f"Applying {normalization} normalization...")
         if normalization == 'standard':
@@ -442,7 +409,7 @@ def prepare_data(df, num_features=9, values_per_feature=20,
             scaler = RobustScaler()
         else:
             print(f"WARNING: Unknown normalization type '{normalization}'. Skipping normalization.")
-            scaler = None # # Indicate no scaling if type is 'unknown' but not 'none'
+            scaler = None 
 
         if scaler:
              try:
@@ -453,7 +420,7 @@ def prepare_data(df, num_features=9, values_per_feature=20,
                  raise
     else:
          print("No normalization applied.")
-         scaler = None # Initialize scaler to None when normalization is 'none'
+         scaler = None 
 
     return X, y, le, scaler, feature_names, actual_group_metrics
 
@@ -474,26 +441,22 @@ def preprocess_holdout_data(df_holdout, config, saved_le, saved_scaler=None):
     """
     print("Preprocessing holdout data using configuration and objects from training run...")
     try:
-        # --- Extract relevant config parameters from the loaded config ---
-        target_col = config.get('target_variable', 'Y') # Ensure target_col is in config or use default
+        target_col = config.get('target_variable', 'Y') 
         is_binary = config.get('is_binary', True)
-        preserve_zones = config.get('preserve_zones', True) # Typically True if trained that way
-        feature_indices = config.get('feature_indices', None) # Use indices from training
-        num_features_trained = config.get('num_features', 9) # Get num_features used in training
-        values_per_feature = config.get('values_per_feature', 20) # Get values_per_feature from config
-        sort_features_config = config.get('sort_features', 'none') # Get sorting config from training
-        transform_features_config = config.get('transform_features', False) # Check if transformation was done in training
-        normalization_config = config.get('normalization', 'none') # Get normalization from training
+        preserve_zones = config.get('preserve_zones', True) 
+        feature_indices = config.get('feature_indices', None)
+        num_features_trained = config.get('num_features', 9) #
+        values_per_feature = config.get('values_per_feature', 20) 
+        sort_features_config = config.get('sort_features', 'none') 
+        transform_features_config = config.get('transform_features', False) 
+        normalization_config = config.get('normalization', 'none') 
 
         print(f"DEBUG (Holdout): Using training config - is_binary={is_binary}, preserve_zones={preserve_zones}, feature_indices={feature_indices}, num_features_trained={num_features_trained}, sort={sort_features_config}, transform={transform_features_config}, normalization={normalization_config}")
 
         if transform_features_config:
              print("WARNING: Holdout preprocessing currently doesn't support reapplying 'transform_features'. Features will be used without this specific transformation.")
-             # If you implement saved transformation parameters, load and apply them here.
 
-        # --- Determine Feature Structure Based on Training Config ---
         if feature_indices is not None:
-             # Use exactly the features specified during training
              actual_num_features = len(feature_indices)
              print(f"DEBUG (Holdout): Selecting features based on training indices: {feature_indices}. Expecting {actual_num_features} features.")
              selected_X_parts = []
@@ -508,7 +471,6 @@ def preprocess_holdout_data(df_holdout, config, saved_le, saved_scaler=None):
              if not selected_X_parts: raise ValueError("Holdout data: No features selected based on training indices.")
              X_holdout = np.hstack(selected_X_parts)
         else:
-             # Use the number of features determined during training
              actual_num_features = num_features_trained
              print(f"DEBUG (Holdout): Selecting features based on num_features_trained={actual_num_features}.")
              max_expected_cols = actual_num_features * values_per_feature
@@ -530,12 +492,12 @@ def preprocess_holdout_data(df_holdout, config, saved_le, saved_scaler=None):
 
         print(f"DEBUG (Holdout): X shape after feature selection: {X_holdout.shape}")
 
-        # --- Target Variable ---
+        #   Target Variable  
         if target_col not in df_holdout.columns:
             raise ValueError(f"Holdout data ERROR: Target column '{target_col}' not found.")
         y_holdout = df_holdout[target_col].values
 
-        # --- Apply Saved LabelEncoder & Handle Unseen Labels ---
+        #   Apply Saved LabelEncoder & Handle Unseen Labels  
         if saved_le is None: raise ValueError("LabelEncoder object is required.")
         seen_labels = saved_le.classes_
         mask_seen = np.isin(y_holdout, seen_labels)
@@ -550,18 +512,18 @@ def preprocess_holdout_data(df_holdout, config, saved_le, saved_scaler=None):
 
         print(f"DEBUG (Holdout): Shape after filtering unseen labels - X:{X_holdout.shape}, y:{y_holdout_processed.shape}")
 
-        # --- Binary Conversion (Based on Training Config) ---
+        #   Binary Conversion (Based on Training Config)  
         if is_binary:
             # Use the same positive class logic as in prepare_data if needed, based on config
             y_holdout_processed = np.where(y_holdout_processed == 0, 0, 1) # Assuming class 0 vs rest
 
-        # --- Feature Sorting (Based on Training Config) ---
+        #   Feature Sorting (Based on Training Config)  
         if sort_features_config != 'none':
             print(f"DEBUG (Holdout): Applying sorting based on training config: {sort_features_config}")
             # (Copy the sorting logic block from prepare_data here, ensuring it uses
             # actual_num_features, values_per_feature, sort_features_config, and feature_indices
             # correctly to determine ascending/descending/unsorted features for the call)
-            # --- Start copy sorting logic ---
+            #   Start copy sorting logic  
             ascending_features_to_pass = []
             descending_features_to_pass = []
             unsorted_features_to_pass = []
@@ -601,45 +563,29 @@ def preprocess_holdout_data(df_holdout, config, saved_le, saved_scaler=None):
                  except Exception as e:
                       print(f"ERROR during holdout sort_feature_values call: {e}")
                       raise
-            # --- End copy sorting logic ---
         else:
             print("DEBUG (Holdout): Skipping sorting based on training config.")
 
-
-        # --- Feature Transformation (Based on Training Config - Placeholder) ---
         if transform_features_config:
             print("DEBUG (Holdout): Applying transformations (if implementation exists)...")
-            # ADD LOGIC HERE: Load transformation parameters/objects saved during training
-            # and apply the *transform* method to X_holdout.
-            # Example:
-            # loaded_poly_transformer = load_pickle(...)
-            # X_holdout = loaded_poly_transformer.transform(X_holdout)
-            pass # Replace with actual transformation code if needed
+            pass 
 
 
-        # --- Apply Saved Normalization (Based on Training Config) ---
         X_holdout_processed = X_holdout # Default if no scaling needed/done
         if normalization_config != 'none':
             if saved_scaler:
                 print(f"DEBUG (Holdout): Applying saved '{normalization_config}' scaler...")
-                X_holdout_processed = saved_scaler.transform(X_holdout) # Use TRANSFORM only
+                X_holdout_processed = saved_scaler.transform(X_holdout) 
             else:
-                # This case should ideally not happen if config says normalize but scaler wasn't saved/loaded
                 print(f"WARNING (Holdout): Training config specified '{normalization_config}' but no scaler provided. Using unscaled data.")
         else:
              print("DEBUG (Holdout): Skipping normalization based on training config.")
 
-
-        # --- Handle NaNs (Impute based on holdout data - less ideal but practical) ---
         if not np.all(np.isfinite(X_holdout_processed)):
              print("WARNING (Holdout): Non-finite values detected after processing. Imputing with mean.")
-             # Consider saving training means for imputation if possible, otherwise use holdout mean
              imputer = SimpleImputer(strategy='mean')
              X_holdout_processed = imputer.fit_transform(X_holdout_processed)
 
-
-        # --- Generate Feature Names (Consistent with Training) ---
-        # Use the same logic as in prepare_data, based on actual_num_features and feature_indices
         metrics_basic = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
         num_metrics = len(metrics_basic)
         if feature_indices:
@@ -648,12 +594,7 @@ def preprocess_holdout_data(df_holdout, config, saved_le, saved_scaler=None):
              feature_names = [f'{metrics_basic[m_idx]}_Z{z+1}' for m_idx in range(min(actual_num_features, num_metrics)) for z in range(values_per_feature)]
              feature_names.extend([f'F{m_idx}_Z{z+1}' for m_idx in range(num_metrics, actual_num_features) for z in range(values_per_feature)])
 
-        # Add names for transformed features if transform_features_config was True AND implemented
         if transform_features_config:
-             # Assuming create_feature_transformations would have returned names
-             # This needs adjustment based on how you save/load transformed names
-             # Example: loaded_transform_names = load_pickle(...)
-             # feature_names = loaded_transform_names
              print("WARNING (Holdout): Feature names may not reflect transformations applied during training.")
 
 
@@ -683,17 +624,11 @@ def plot_class_distribution(y, le, title):
     # Create plot with numeric classes
     class_counts = np.bincount(y_numeric)
     classes = np.arange(len(class_counts))
-    
-    # Use color instead of palette (matplotlib vs seaborn parameter)
     bars = plt.bar(classes, class_counts, color='skyblue')
-    
-    # Add count labels on top of each bar
     for bar in bars:
         height = bar.get_height()
         plt.text(bar.get_x() + bar.get_width()/2., height,
                  f'{int(height)}', ha='center', va='bottom')
-    
-    # Try to use original labels if available
     try:
         if hasattr(le, 'classes_'):
             original_labels = le.classes_
@@ -723,7 +658,6 @@ def calculate_minkowski_distances(X, p=2, max_samples=1000):
         distances: Array of distances
     """
     distances = []
-    # Take a sample if dataset is large
     if len(X) > max_samples:
         indices = np.random.choice(len(X), max_samples, replace=False)
         X_sample = X[indices]
@@ -736,7 +670,6 @@ def calculate_minkowski_distances(X, p=2, max_samples=1000):
             distances.append(dist)
     return np.array(distances)
 
-# Function to analyze Minkowski distances
 def analyze_minkowski(X_train, p_values=None):
     """
     Analyze Minkowski distances for given p values
@@ -763,7 +696,6 @@ def analyze_minkowski(X_train, p_values=None):
     plt.show()
     plt.close()
 
-# Model training and evaluation function
 def train_evaluate_model(model, X_train, X_test, y_train, y_test, model_name, le):
     """
     Train and evaluate a model
@@ -789,40 +721,6 @@ def train_evaluate_model(model, X_train, X_test, y_train, y_test, model_name, le
     acc = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred, average='weighted',zero_division=0)
     
-    # Calculate ROC AUC for binary classification
-    # if len(np.unique(y_test)) == 2:
-    #     # Check if model can predict probabilities
-    #     if hasattr(model, "predict_proba"):
-    #         y_proba = model.predict_proba(X_test)[:, 1]
-    #         roc_auc = roc_auc_score(y_test, y_proba)
-    #         # Plot ROC curve
-    #         fpr, tpr, _ = roc_curve(y_test, y_proba)
-    #         plt.figure(figsize=(6, 6))
-    #         plt.plot(fpr, tpr, label=f'ROC curve (area = {roc_auc:.2f})')
-    #         plt.plot([0, 1], [0, 1], 'k--')
-    #         plt.xlim([0.0, 1.0])
-    #         plt.ylim([0.0, 1.05])
-    #         plt.xlabel('False Positive Rate')
-    #         plt.ylabel('True Positive Rate')
-    #         plt.title(f'ROC Curve - {model_name}')
-    #         plt.legend(loc="lower right")
-    #         plt.show()
-            
-    #         # Also add precision-recall curve
-    #         precision, recall, _ = precision_recall_curve(y_test, y_proba)
-    #         avg_precision = average_precision_score(y_test, y_proba)
-    #         plt.figure(figsize=(6, 6))
-    #         plt.plot(recall, precision, label=f'AP = {avg_precision:.2f}')
-    #         plt.xlabel('Recall')
-    #         plt.ylabel('Precision')
-    #         plt.title(f'Precision-Recall Curve - {model_name}')
-    #         plt.legend(loc="lower left")
-    #         plt.show()
-            
-    #         print(f"ROC AUC: {roc_auc:.4f}")
-    #         print(f"Average Precision: {avg_precision:.4f}")
-    #     else:
-    #         print("Model doesn't support probability predictions for ROC AUC calculation")
     
     if hasattr(model, "predict_proba"):
         y_proba = model.predict_proba(X_test)
@@ -909,9 +807,6 @@ def train_evaluate_model(model, X_train, X_test, y_train, y_test, model_name, le
     return model, y_pred, roc_auc, avg_precision
 
 
-
-
-# Save model results to CSV
 def save_results(model_name, accuracy, roc_auc, avg_precision, hyperparams, num_features, data_path, is_binary, preserve_zones, sort_features, normalization, sampling_method, y_true, y_pred):
     """
     Save model results to CSV
@@ -1017,8 +912,6 @@ def save_best_model(model, model_name, params):
     
     print(f"Best model ({model_name}) saved to: {filename}")
 
-
-#------------------------Added--------------------------------
 def log_grid_search_results(model_name, best_params, train_score, test_score, gap, report_dir=None):
     """Log grid search results to a file for later analysis"""
     log_entry = {
@@ -1053,7 +946,7 @@ def log_grid_search_results(model_name, best_params, train_score, test_score, ga
         print(f"Error logging results: {e}")
 
 
-def grid_search_model_v3(model, param_grid, X_train, y_train, model_name, cv=3, report_dir=None):
+def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, report_dir=None, sampling_method='none'): 
     """
     Perform grid search for hyperparameter tuning with focus on preventing overfitting
     
@@ -1072,11 +965,8 @@ def grid_search_model_v3(model, param_grid, X_train, y_train, model_name, cv=3, 
     print(f"Binary classification: {len(np.unique(y_train)) == 2}")
     print(f"Class distribution in training data: {np.bincount(y_train)}")
     
-    # Check if cv is too large for the minority class
     class_counts = np.bincount(y_train)
-    min_samples = min(class_counts[class_counts > 0])  # Ignore classes with zero samples
-    
-    # Determine appropriate number of folds
+    min_samples = min(class_counts[class_counts > 0])  #
     original_cv = cv
     if min_samples < 5:  # Very small class
         print(f"Using Leave-One-Out CV due to very small class size: {min_samples}")
@@ -1090,155 +980,17 @@ def grid_search_model_v3(model, param_grid, X_train, y_train, model_name, cv=3, 
     else:  # Class is large enough for normal CV
         print(f"Using standard {cv}-fold cross-validation")
         stratified_cv = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
-    
-    # Limit parallel jobs to avoid memory issues with small datasets
-    # n_jobs = min(2, os.cpu_count() or 1)
-    n_jobs =  1    
-    # Print parameter grid for debugging
-    print(f"Parameter grid: {param_grid}")
-    
-    filtered_params = filter_param_grid(param_grid)
-    
-    
-    
-    # Ensure the grid search does not use test data information
-    grid_search = GridSearchCV(
-        model, filtered_params, 
-        # param_grid, 
-        cv=stratified_cv,  # Use stratified k-fold
-        scoring='f1_weighted',
-        n_jobs=n_jobs, 
-        verbose=1,
-        return_train_score=True,  # Add this to check for overfitting
-        error_score=0.0  # Return 0 for failed fits instead of raising error
-    )
-   
-    # Try/except block to catch and debug issues
-    try:
-        print(f"Starting grid search with CV splits: {getattr(stratified_cv, 'n_splits', 'LOO')}")
-        grid_search.fit(X_train, y_train)
-    
-        # Debug overfitting
-        # Print CV results to help diagnose overfitting
-        means_train = grid_search.cv_results_['mean_train_score']
-        means_test = grid_search.cv_results_['mean_test_score']
-        stds_test = grid_search.cv_results_['std_test_score']
-        
-        print(f"Cross-validation results:")
-        print(f"{'Parameters':<40} {'Train Score':<12} {'Test Score':<12} {'Gap':<8}")
-        for train_mean, test_mean, std, params in zip(means_train, means_test, stds_test, grid_search.cv_results_['params']):
-            # Calculate gap between train and test score (potential overfitting indicator)
-            gap = train_mean - test_mean
-            param_str = str(params)
-            if len(param_str) > 35:
-                param_str = param_str[:32] + "..."
-            print(f"{param_str:<40} {train_mean:.4f} {test_mean:.4f} (±{std:.4f}) {gap:.4f}")
-        
-        print(f"Best parameters: {grid_search.best_params_}")
-        print(f"Best CV score: {grid_search.best_score_:.4f}")
-        
-        # Check if overfitting is likely (large gap between train and test scores)
-        best_idx = grid_search.best_index_
-        best_train_score = means_train[best_idx]
-        best_test_score = means_test[best_idx]
-        gap = best_train_score - best_test_score
-        
-        if gap > 0.1:  # More than 10% gap indicates potential overfitting
-            print(f"Warning: Possible overfitting (10%+ gap). Train score: {best_train_score:.4f}, Test score: {best_test_score:.4f}, Gap: {gap:.4f}")
-            
-            # Apply regularization if overfitting is severe
-            if gap > 0.2:  # More than 20% gap indicates severe overfitting
-                print("Severe overfitting detected. Applying stronger regularization...")
-                best_model = apply_regularization(model, grid_search.best_params_, strength=1.5)
-                best_model.fit(X_train, y_train)
-                return best_model, grid_search.best_params_
-            else:
-                # Moderate overfitting - apply milder regularization
-                print("Moderate overfitting detected. Applying mild regularization...")
-                best_model = apply_regularization(model, grid_search.best_params_, strength=1.2)
-                best_model.fit(X_train, y_train)
-                return best_model, grid_search.best_params_
-        
-        
-        if hasattr(grid_search, 'best_score_') and hasattr(grid_search, 'best_params_'):
-            # best_idx = grid_search.best_index_
-            # best_train_score = means_train[best_idx] if 'means_train' in locals() else 0.0
-            # best_test_score = grid_search.best_score_
-            # gap = best_train_score - best_test_score
-            
-            # Log the results
-            log_grid_search_results(
-                model_name, 
-                grid_search.best_params_, 
-                best_train_score, 
-                best_test_score, 
-                gap,
-                report_dir
-            )
-        
-        return grid_search.best_estimator_, grid_search.best_params_
 
-        
-    except Exception as e:
-        print(f"Error during grid search for {model_name}: {str(e)}")
-        print("Returning model with conservative parameters")
-        return create_conservative_model(model_name), {}
-
-def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, report_dir=None, sampling_method='none'): # <-- ADDED
-    """
-    Perform grid search for hyperparameter tuning with focus on preventing overfitting
-    
-    Args:
-        model: Model to tune
-        param_grid: Parameter grid
-        X_train, y_train: Training data
-        model_name: Name of the model
-        cv: Maximum number of cross-validation folds
-        
-    Returns:
-        best_model: Best model
-        best_params: Best parameters
-    """
-    print(f"\nPerforming grid search for {model_name}...")
-    print(f"Binary classification: {len(np.unique(y_train)) == 2}")
-    print(f"Class distribution in training data: {np.bincount(y_train)}")
-    
-    # Check if cv is too large for the minority class
-    class_counts = np.bincount(y_train)
-    min_samples = min(class_counts[class_counts > 0])  # Ignore classes with zero samples
-    
-    # Determine appropriate number of folds
-    original_cv = cv
-    if min_samples < 5:  # Very small class
-        print(f"Using Leave-One-Out CV due to very small class size: {min_samples}")
-        from sklearn.model_selection import LeaveOneOut
-        stratified_cv = LeaveOneOut()
-    elif min_samples < cv:  # Small but not tiny class
-        adjusted_cv = max(2, min(3, min_samples))
-        print(f"Adjusting grid search: Minority class has only {min_samples} samples, "
-              f"reducing folds from {original_cv} to {adjusted_cv}")
-        stratified_cv = StratifiedKFold(n_splits=adjusted_cv, shuffle=True, random_state=42)
-    else:  # Class is large enough for normal CV
-        print(f"Using standard {cv}-fold cross-validation")
-        stratified_cv = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
-    
-    # Limit parallel jobs to avoid memory issues with small datasets
-    # n_jobs = min(2, os.cpu_count() or 1)
     n_jobs =  1
-    
-    # Print parameter grid for debugging
     print(f"Parameter grid: {param_grid}")
-    
     filtered_params = filter_param_grid(param_grid)
-    
-    print(f"  Sampling Method requested for CV: {sampling_method}") # Log sampling method
+    print(f"  Sampling Method requested for CV: {sampling_method}") 
 
     sampler = None
-    model_to_tune = clone(model) # Use a clone of the input model
-    grid_to_use = filtered_params # Use the filtered parameters by default
+    model_to_tune = clone(model) 
+    grid_to_use = filtered_params 
 
     if sampling_method == 'smote':
-        # Optional: Add checks for minimum class size if needed, similar to your CV checks
         class_counts_check = np.bincount(y_train)
         min_samples_check = min(class_counts_check[class_counts_check > 0]) if len(class_counts_check[class_counts_check > 0]) > 0 else 0
         unique_classes_check = len(class_counts_check[class_counts_check > 0])
@@ -1246,9 +998,8 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
         if unique_classes_check < 2 or min_samples_check < 2:
             print(f"  Warning: Cannot apply SMOTE (need >=2 classes with >=2 samples each). Proceeding without sampling.")
         else:
-            # Use k_neighbors logic similar to your run_classification_pipeline if desired
-            k_neighbors = min(min_samples_check - 1, 5) # Default k=5, ensure k < min_samples
-            if k_neighbors < 1: k_neighbors = 1 # Ensure k is at least 1
+            k_neighbors = min(min_samples_check - 1, 5) 
+            if k_neighbors < 1: k_neighbors = 1 
             sampler = SMOTE(random_state=42, k_neighbors=k_neighbors)
             print(f"    Preparing imblearn pipeline with SMOTE (k={k_neighbors}).")
             
@@ -1260,57 +1011,33 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
         print(f"    Preparing imblearn pipeline with RandomUnderSampler.")
         sampler = RandomUnderSampler(random_state=42)
 
-    # Add elif for other samplers if you implement them ('random_over', 'random_under')
     elif sampling_method and sampling_method != 'none':
         print(f"    Warning: Sampler '{sampling_method}' requested but not implemented in pipeline. No sampling applied.")
     else:
         print(f"    No sampling requested or sampler is 'none'. Using original model.")
-
-
-    # if sampler: # If a sampler was successfully initialized
-    #     # Create the imblearn pipeline
-    #     pipeline = ImbPipeline([
-    #         ('sampler', sampler),
-    #         ('classifier', model_to_tune) # Use the cloned model
-    #     ])
-    #     # Prefix parameter names in the grid with 'classifier__'
-    #     pipeline_param_grid = {f'classifier__{k}': v for k, v in filtered_params.items()}
-
-    #     # Update variables to be used by GridSearchCV
-    #     model_to_tune = pipeline
-    #     grid_to_use = pipeline_param_grid
-    #     print(f"    Using imblearn pipeline for GridSearchCV.")
     
-    if sampler: # If a sampler was successfully initialized
+    if sampler: 
         print(f"    Pre-checking sampler '{sampling_method}' effect on full training data:")
         try:
-            # Apply sampler to the full training set *just for this check*
             X_train_check, y_train_check = sampler.fit_resample(X_train, y_train)
             print(f"    ---> Counts after applying {sampling_method} (for check): {Counter(y_train_check)}")
             del X_train_check, y_train_check
         except Exception as e:
             print(f"    ---> Could not perform pre-check sampling: {e}")
-            # Optionally print traceback 
-            # traceback.print_exc()
 
-        # Now, set up the pipeline for GridSearchCV using OG X_train, y_train
         pipeline = ImbPipeline([
-            ('sampler', sampler), # The sampler instance is used here
-            ('classifier', clone(model)) # Use a clone of the *original* model
+            ('sampler', sampler), 
+            ('classifier', clone(model)) 
         ])
-        # Prefix parameter names in the grid with 'classifier__'
         pipeline_param_grid = {f'classifier__{k}': v for k, v in filtered_params.items()}
 
-        # Update variables to be used by GridSearchCV
         model_to_tune = pipeline
         grid_to_use = pipeline_param_grid
         print(f"    Using imblearn pipeline for GridSearchCV (sampling will happen per fold).")
     else:
-        # No sampler, use the original cloned model
         model_to_tune = clone(model)
         grid_to_use = filtered_params
         print(f"    Using original model clone for GridSearchCV (no sampling in pipeline).")
-    # <<< END: Added block >>>
         
         
     grid_search = GridSearchCV(
@@ -1321,29 +1048,13 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
         n_jobs=n_jobs,                
         verbose=1,                    
         return_train_score=True,      
-        error_score= 'raise',         #  (good for debugging)
+        error_score= 'raise',         
     )
-    
-    
-    # # Ensure the grid search does not use test data information
-    # grid_search = GridSearchCV(
-    #     model, filtered_params, 
-    #     # param_grid, 
-    #     cv=stratified_cv,  # Use stratified k-fold
-    #     scoring='f1_weighted',
-    #     n_jobs=n_jobs, 
-    #     verbose=1,
-    #     return_train_score=True,  # Add this to check for overfitting
-    #     error_score= 'raise',  # Return 0 for failed fits instead of raising error
-    # )
-   
-    # Try/except block to catch and debug issues
+
     try:
         print(f"Starting grid search with CV splits: {getattr(stratified_cv, 'n_splits', 'LOO')}")
         grid_search.fit(X_train, y_train)
     
-        # Debug overfitting
-        # Print CV results to help diagnose overfitting
         means_train = grid_search.cv_results_['mean_train_score']
         means_test = grid_search.cv_results_['mean_test_score']
         stds_test = grid_search.cv_results_['std_test_score']
@@ -1351,7 +1062,6 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
         print(f"Cross-validation results:")
         print(f"{'Parameters':<40} {'Train Score':<12} {'Test Score':<12} {'Gap':<8}")
         for train_mean, test_mean, std, params in zip(means_train, means_test, stds_test, grid_search.cv_results_['params']):
-            # Calculate gap between train and test score (potential overfitting indicator)
             gap = train_mean - test_mean
             param_str = str(params)
             if len(param_str) > 35:
@@ -1360,22 +1070,20 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
         
         print(f"Best parameters: {grid_search.best_params_}")
         print(f"Best CV score: {grid_search.best_score_:.4f}")
-        
-        # Check if overfitting is likely (large gap between train and test scores)
+
         best_idx = grid_search.best_index_
         best_train_score = means_train[best_idx]
         best_test_score = means_test[best_idx]
         gap = best_train_score - best_test_score
         
-        params_are_prefixed = bool(sampler) # True if ImbPipeline was used
+        params_are_prefixed = bool(sampler) 
         current_best_params = grid_search.best_params_
-        model_to_regularize = model # The original base model
+        model_to_regularize = model 
         
         
-        if gap > 0.1:  # More than 10% gap indicates potential overfitting
+        if gap > 0.1:  
             print(f"Warning: Possible overfitting (10%+ gap). Train score: {best_train_score:.4f}, Test score: {best_test_score:.4f}, Gap: {gap:.4f}")
-            
-            # Un-prefix parameters if from a pipeline, before applying regularization to the base model
+
             params_for_regularization = {}
             if params_are_prefixed:
                 print("  Un-prefixing parameters for regularization step...")
@@ -1383,26 +1091,19 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
                     if p_name.startswith('classifier__'):
                         params_for_regularization[p_name.split('__', 1)[1]] = p_value
                     else:
-                        params_for_regularization[p_name] = p_value # Should not happen if logic is correct
+                        params_for_regularization[p_name] = p_value 
             else:
                 params_for_regularization = current_best_params
             
             # Apply regularization if overfitting is severe
             if gap > 0.2:  # More than 20% gap indicates severe overfitting
                 print("Severe overfitting detected. Applying stronger regularization...")
-                # best_model = apply_regularization(model, grid_search.best_params_, strength=1.5)
-                # best_model.fit(X_train, y_train)
-                # return best_model, grid_search.best_params_
                 best_model_candidate = apply_regularization(model_to_regularize, params_for_regularization, strength=1.5)
                 best_model_candidate.fit(X_train, y_train) 
                 return best_model_candidate, params_for_regularization
             
             else:
-                # Moderate overfitting - apply milder regularization
                 print("Moderate overfitting detected. Applying mild regularization...")
-                # best_model = apply_regularization(model, grid_search.best_params_, strength=1.2)
-                # best_model.fit(X_train, y_train)
-                # return best_model, grid_search.best_params_
                 best_model_candidate = apply_regularization(model_to_regularize, params_for_regularization, strength=1.2)
                 best_model_candidate.fit(X_train, y_train) 
                 return best_model_candidate, params_for_regularization
@@ -1411,8 +1112,6 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
         if isinstance(final_best_estimator, ImbPipeline) or isinstance(final_best_estimator, Pipeline):
             print("  Best estimator is a pipeline. Extracting classifier and its original parameters.")
             final_best_estimator = final_best_estimator.named_steps['classifier']
-            # Reconstruct unprefixed params that correspond to this classifier
-            # This assumes 'filtered_params' holds the original unprefixed grid for the base model
             original_params_for_best_classifier = {}
             for key_prefixed in grid_search.best_params_:
                 if key_prefixed.startswith('classifier__'):
@@ -1421,23 +1120,14 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
             final_best_params = original_params_for_best_classifier
         
         if hasattr(grid_search, 'best_score_') and hasattr(grid_search, 'best_params_'):
-            # best_idx = grid_search.best_index_
-            # best_train_score = means_train[best_idx] if 'means_train' in locals() else 0.0
-            # best_test_score = grid_search.best_score_
-            # gap = best_train_score - best_test_score
-            
-            # Log the results
             log_grid_search_results(
                 model_name= model_name, 
-                # grid_search.best_params_,
                 best_params=final_best_params, 
                 train_score=best_train_score, 
                 test_score=best_test_score, 
                 gap = gap,
                 report_dir=report_dir
             )
-        
-        # return grid_search.best_estimator_, grid_search.best_params_
         return final_best_estimator, final_best_params
 
         
@@ -1457,9 +1147,7 @@ def apply_regularization(model, best_params, strength=1.0):
     # Create a clone of the model with best parameters
     regularized_model = clone(model).set_params(**best_params)
     
-    # Apply regularization based on model type
     if isinstance(model, RandomForestClassifier):
-        # Increase min_samples_leaf and reduce max_depth
         max_depth = regularized_model.max_depth
         if max_depth is not None:
             regularized_model.max_depth = max(3, int(max_depth / strength))
@@ -1506,6 +1194,8 @@ def apply_regularization(model, best_params, strength=1.0):
         regularized_model.C = regularized_model.C / strength
         
     return regularized_model
+
+
 def create_conservative_model(model_name):
     """Create a more conservative model to prevent overfitting"""
     if 'Logistic Regression' in model_name:
@@ -1572,41 +1262,14 @@ def create_base_models(num_classes, class_distribution=None):
         Dictionary of base models
     """
     is_binary = (num_classes == 2)
-    
-    # Calculate class weights if distribution is provided
     if class_distribution is not None:
-        # For binary: higher weight to minority class
         if is_binary:
             ratio = class_distribution[0] / max(class_distribution[1], 1)
             binary_weight = {0: 1, 1: ratio} if class_distribution[0] > class_distribution[1] else {0: ratio, 1: 1}
         else:
-            # Auto-balanced weights are fine for multiclass
             binary_weight = None
     else:
         binary_weight = None
-    
-    base_models_1 = {
-        # 'Logistic Regression': LogisticRegression(
-        #     max_iter=5000,  # Increase iterations for convergence
-        #     C=0.1,          # Start with stronger regularization
-        #     class_weight='balanced' if binary_weight is None else binary_weight,
-        #     random_state=42,
-        #     multi_class='auto',
-        #     solver='liblinear' if is_binary else 'saga'  # liblinear is better for binary
-        # )
-        
-        'Random Forest': RandomForestClassifier(
-            n_estimators=300,   # More trees for stability
-            max_depth=5,        # Limit depth to prevent overfitting
-            # min_samples_leaf=5, # Require more samples per leaf
-            min_samples_leaf = 2,
-            min_samples_split = 5,
-            class_weight= "balanced_subsample", #'balanced',
-            max_features='sqrt',  # Feature subsampling
-            criterion = "entropy",
-            random_state=42
-        )
-    }
     
     base_models = {
         'Logistic Regression': LogisticRegression(
@@ -1681,7 +1344,6 @@ def create_base_models(num_classes, class_distribution=None):
             random_state = 42 # Increase from 3
             # scale_pos_weight=1.5 if is_binary else 1
         ),
-        # Inside the base_models dictionary
         'Gaussian NB': GaussianNB(),
         # add others here AFTER preprocess data for them
         # 'Complement NB': ComplementNB(), # Requires non-negative features
@@ -1689,18 +1351,15 @@ def create_base_models(num_classes, class_distribution=None):
         }
     
     return base_models # 
-    # return base_models_all
 
 def filter_param_grid(param_grid):
     """Filter parameter grid to remove incompatible combinations"""
     from sklearn.model_selection import ParameterGrid
     
-    # Convert ParameterGrid back to a dictionary format that GridSearchCV expects
     valid_params = {}
     for key in param_grid:
-        valid_params[key] = param_grid[key]  # Keep original format
-    
-    # Filter out incompatible combinations from elasticnet penalty
+        valid_params[key] = param_grid[key]  
+        
     if 'penalty' in param_grid and 'l1_ratio' in param_grid:
         # If penalty is not elasticnet, don't include l1_ratio
         if 'elasticnet' not in param_grid['penalty']:
@@ -1709,7 +1368,6 @@ def filter_param_grid(param_grid):
     print(f"Filtered parameter grid: {valid_params}")
     return param_grid
 
-# Define specialized parameter grids for binary classification
 binary_param_grids = {
     'Logistic Regression': {
         'C': [0.0001, 0.001, 0.01, 0.1],  # Focus on smaller C (stronger regularization)
@@ -1840,8 +1498,7 @@ multiclass_param_grids = {
         'var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5, 1e-4]
     },
 }
-    
-#------------------------End--------------------------------
+
 
 
 def plot_learning_curve(model, X_train, y_train, X_test, y_test, cv=3, n_jobs=1):
@@ -1860,10 +1517,9 @@ def plot_learning_curve(model, X_train, y_train, X_test, y_test, cv=3, n_jobs=1)
     import matplotlib.pyplot as plt
     import os
     from sklearn.metrics import f1_score
-    
-    # Check if cv is too large for the minority class
+ 
     class_counts = np.bincount(y_train)
-    min_samples = min(class_counts[class_counts > 0])  # Ignore classes with zero samples
+    min_samples = min(class_counts[class_counts > 0])  
     
     # Adjust cv if necessary
     original_cv = cv
@@ -1872,9 +1528,7 @@ def plot_learning_curve(model, X_train, y_train, X_test, y_test, cv=3, n_jobs=1)
         cv = max(2, min(3, min_samples))
         print(f"\nAdjusting learning curve: Minority class has only {min_samples} samples, "
               f"reducing folds from {original_cv} to {cv}")
-    
-    # Limit n_jobs to avoid memory issues
-    # n_jobs = min(2, os.cpu_count() or 1)  # Use at most 2 processes
+
     n_jobs =  1
     
     train_sizes = np.linspace(0.1, 1.0, 10)
@@ -1959,9 +1613,6 @@ def get_standardized_model_name(model):
     return model_name
 
 
-
-
-# works!! global shap
 def plot_circular_shap_heatmap(shap_values, feature_names, num_zones_per_metric, model_name_prefix, shap_output_dir):
     """
     Generates a composite circular SHAP heatmap for all feature groups by plotting
@@ -1981,7 +1632,7 @@ def plot_circular_shap_heatmap(shap_values, feature_names, num_zones_per_metric,
     shap_output_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        # --- Step 1: Prepare the Data ---
+        #   Step 1: Prepare the Data  
         mean_abs_shaps_flat = np.abs(shap_values).mean(axis=0)
         num_metrics = len(feature_names)
 
@@ -1997,7 +1648,7 @@ def plot_circular_shap_heatmap(shap_values, feature_names, num_zones_per_metric,
             logger.info("Skipping circular SHAP plot as heatmap_data is empty.")
             return
 
-        # --- Step 2: Define the Circular Plot Geometry ---
+        #   Step 2: Define the Circular Plot Geometry  
         r_inner, r_middle, r_outer = 0.3, 0.6, 1.0
         zone_definitions = []
         start_segment_offsets = {"inner": 0, "middle": 1, "outer": 1}
@@ -2023,7 +1674,7 @@ def plot_circular_shap_heatmap(shap_values, feature_names, num_zones_per_metric,
             label = 13 + k
             zone_definitions.append({"data_col_name": f"Z{label}", "display_label": str(label), "r": r_outer, "theta1": angles_outer_vad[i], "theta2": angles_outer_vad[i+1], "annulus_width": r_outer - r_middle})
 
-        # --- Step 3: Create the Composite Plot ---
+        #   Step 3: Create the Composite Plot  
         ncols = 3
         nrows = int(np.ceil(num_metrics / ncols))
         master_fig, master_axes = plt.subplots(nrows, ncols, figsize=(4.5 * ncols, 4.5 * nrows + 0.7))
@@ -2200,14 +1851,13 @@ def plot_circular_shap_heatmap_final(shap_values_array, group_metrics, num_zones
         plt.show()
 
 
-# eval run shap()
 def run_shap_analysis_eval(model, X_test, feature_names, report_dir, config, y_test=None, sample_indices_to_plot=[9]):
     """
     Definitive, robust function for SHAP analysis. This version uses a
     resilient hybrid approach to handle inconsistencies in SHAP plotting functions.
     """
     model_name_str = get_standardized_model_name(model)
-    logger.info(f"--- Running Definitive SHAP Analysis for {model_name_str} ---")
+    logger.info(f"--- Running Definitive SHAP Analysis for {model_name_str}  ")
 
     try:
         X_test_df = pd.DataFrame(X_test, columns=feature_names)
@@ -2240,13 +1890,13 @@ def run_shap_analysis_eval(model, X_test, feature_names, report_dir, config, y_t
 
         for class_idx in class_indices:
             class_name = f"Class_{class_idx}"
-            logger.info(f"--- Generating plots for Class: {class_name} ---")
+            logger.info(f"--- Generating plots for Class: {class_name}  ")
 
             # 4. Extract values for the current class
             shap_values_for_class = raw_shap_values if (is_binary and class_idx == 1) else -raw_shap_values if is_binary else raw_shap_values[class_idx]
 
             # 5. Generate Plots
-            # --- Summary Plot (most stable method) ---
+            #   Summary Plot (most stable method)  
             plt.figure(figsize=(10, 8))
             shap.summary_plot(shap_values_for_class, X_test_df, show=False)
             if figures_dir: plt.savefig(figures_dir / f"{model_name_str}_shap_summary_{class_name}.png", dpi=150, bbox_inches='tight')
@@ -2260,14 +1910,14 @@ def run_shap_analysis_eval(model, X_test, feature_names, report_dir, config, y_t
                 feature_names=feature_names
             )
 
-            # --- Bar Plot (only for positive class) ---
+            #   Bar Plot (only for positive class)  
             if not is_binary or class_idx == 1:
                 plt.figure(figsize=(10, 8))
                 shap.plots.bar(explanation, show=False)
                 if figures_dir: plt.savefig(figures_dir / f"{model_name_str}_shap_bar_{class_name}.png", dpi=150, bbox_inches='tight')
                 plt.close()
             
-            # --- Waterfall & Grouped Waterfall ---
+            #   Waterfall & Grouped Waterfall  
             all_metrics = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
             feature_indices = config.get('feature_indices')
             group_metrics = [all_metrics[i] for i in feature_indices] if feature_indices is not None else all_metrics
@@ -2346,7 +1996,7 @@ class ShapTimeoutError(Exception):
     """Custom exception for SHAP calculation timeout."""
     pass
 
-# --- Signal Handler Function ---
+#   Signal Handler Function  
 def shap_timeout_handler(signum, frame):
     """Raises ShapTimeoutError when signal is received."""
     print("\n!!! SHAP CALCULATION TIMEOUT !!!")
@@ -2368,7 +2018,7 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
     Includes grouped waterfall and robust error handling.
     """
     try:
-        # --- Determine Binary/Multiclass Status ---
+        #   Determine Binary/Multiclass Status  
         if is_binary is None:
             if hasattr(model, 'n_classes_') and model.n_classes_ == 2:
                 is_binary = True
@@ -2380,25 +2030,25 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
                 is_binary = False
         print(f"\nRunning SHAP analysis (plot_type='{plot_type}', is_binary={is_binary}) for {get_standardized_model_name(model)}")
 
-        # --- Model Handling: Get Base Model if Pipeline ---
+        #   Model Handling: Get Base Model if Pipeline  
         base_model = model.steps[-1][1] if isinstance(model, Pipeline) else model
         is_stacking = isinstance(base_model, StackingClassifier) # Check if base_model is Stacking
 
-        # --- Feature Names Handling ---
+        #   Feature Names Handling  
         num_original_features = X_test.shape[1]
         if feature_names is None or len(feature_names) != num_original_features:
             print(f"  Warning: Feature names issue (Given: {len(feature_names) if feature_names else 'None'}, Expected: {num_original_features}). Using generic names.")
             feature_names = [f'feature_{i}' for i in range(num_original_features)]
         current_feature_names = feature_names
 
-        # --- Data Preparation for SHAP ---
+        #   Data Preparation for SHAP  
         # Ensure X_test is a DataFrame for SHAP Explanation object consistency
         if not isinstance(X_test, pd.DataFrame):
             X_test_df = pd.DataFrame(X_test, columns=current_feature_names)
         else:
             X_test_df = X_test.copy() # Use a copy to avoid modifying original
 
-        # --- Initialize Variables for Saving ---
+        #   Initialize Variables for Saving  
         model_name_str = get_standardized_model_name(model)
         file_prefix = f"{model_name_str}_shap"
         filename = ""
@@ -2413,7 +2063,7 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
                 print(f"  ERROR: Could not create figures directory '{figures_dir}': {dir_e}. Plot saving will be skipped.")
                 figures_dir = None # Disable saving
 
-        # --- SHAP Value Calculation ---
+        #   SHAP Value Calculation  
         shap_values = None
         explainer_obj = None # To store the explainer instance
         X_explain = X_test_df # Use DataFrame for explanation
@@ -2511,7 +2161,7 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
             print("  ERROR: SHAP values are None after calculation attempt.")
             return {"error": "SHAP values are None."}
 
-        # --- Process SHAP Values for Plotting (Binary vs Multiclass) ---
+        #   Process SHAP Values for Plotting (Binary vs Multiclass)  
         shap_values_for_plot = None
         expected_value_for_plot = None
 
@@ -2556,7 +2206,7 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
             expected_value_for_plot = np.mean(expected_value_for_plot)
 
 
-        # --- Create SHAP Explanation Object ---
+        #   Create SHAP Explanation Object  
         explanation = None
         try:
             explanation = shap.Explanation(
@@ -2576,7 +2226,7 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
                     plt.close()
             return {"error": f"Failed to create Explanation for plotting: {e_expl}"}
 
-        # --- Generate and Save Plot ---
+        #   Generate and Save Plot  
         matplotlib_figure_created = False
         try:
             if plot_type == 'force':
@@ -2602,7 +2252,7 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
                 else: print("  Warning: No figures_dir. Skipping force plot save.")
                 return # Force plot handling is separate
 
-            # --- Other Matplotlib-based Plots ---
+            #   Other Matplotlib-based Plots  
             fig = plt.figure(figsize=(10, 8)) # Adjust as needed, smaller than (12,8)
             matplotlib_figure_created = True
 
@@ -2743,7 +2393,7 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
             if matplotlib_figure_created:
                 plt.close(plt.gcf())
 
-        # --- Coefficient Importance Plots (if bar plot and linear model) ---
+        #   Coefficient Importance Plots (if bar plot and linear model)  
         if plot_type == 'bar' and isinstance(base_model, (LogisticRegression, LinearRegression, Ridge, Lasso, SVC)):
             if hasattr(base_model, 'coef_') and (not isinstance(base_model, SVC) or base_model.kernel == 'linear'):
                 print(f"  Generating coefficient importance plots for {model_name_str} (Class {class_index})...")
@@ -2784,156 +2434,11 @@ def run_shap_analysis(model, X_test, feature_names=None, sample_idx=None,
     
 
     except Exception as e_outer:
-        print(f"\n--- Outer Error during SHAP analysis for {model_name_str} ---")
+        print(f"\n--- Outer Error during SHAP analysis for {model_name_str}  ")
         print(f"Error message: {e_outer}")
         traceback.print_exc()
         if plt.get_fignums(): plt.close('all') # Close any open figures
         return {"error": str(e_outer)}
-
-
-def run_shap_analysis_eval_v1(model, X_test, feature_names, plot_type, class_index, sample_idx=0, report_dir=None, group_metrics=None, values_per_group=20, **kwargs):
-    """
-    A robust, self-contained function that correctly handles various SHAP explainer
-    outputs for binary and multiclass models before generating plots.
-    """
-    model_name_str = get_standardized_model_name(model)
-    logger.info(f"--- Running SHAP Analysis (Plot: {plot_type}, Class: {class_index}, Model: {model_name_str}) ---")
-    
-    try:
-        # --- 1. Standardize Data & Get Explainer ---
-        X_test_df = pd.DataFrame(X_test, columns=feature_names)
-        base_model = model.steps[-1][1] if isinstance(model, Pipeline) else model
-        
-        if isinstance(base_model, (RandomForestClassifier, GradientBoostingClassifier, xgb.XGBClassifier, LogisticRegression)):
-            explainer = shap.Explainer(model, X_test_df)
-        else:
-            logger.info("    Using KernelExplainer as fallback.")
-            background_data = shap.sample(X_test_df, min(100, X_test_df.shape[0]))
-            explainer = shap.KernelExplainer(model.predict_proba, background_data)
-        
-        shap_values = explainer.shap_values(X_test_df)
-
-        # --- 2. THE FIX: Correctly process different SHAP value structures ---
-        shap_values_for_class = None
-        base_value_for_class = None
-
-        if isinstance(shap_values, list): # KernelExplainer binary or any multiclass
-            shap_values_for_class = shap_values[class_index]
-            base_value_for_class = explainer.expected_value[class_index]
-        else: # Linear/Tree binary case (single 2D array)
-            shap_values_for_class = shap_values if class_index == 1 else -shap_values
-            base_value_for_class = explainer.expected_value if class_index == 1 else (1 - explainer.expected_value)
-
-        # --- 3. Create a clean Explanation object for plotting ---
-        final_explanation = shap.Explanation(
-            values=shap_values_for_class,
-            base_values=np.full(X_test_df.shape[0], base_value_for_class),
-            data=X_test_df.values,
-            feature_names=X_test_df.columns.tolist()
-        )
-        
-        # --- 4. Generate and Save Plot ---
-        plt.figure(figsize=(10, 8))
-        if plot_type == 'summary':
-            shap.summary_plot(final_explanation, show=False)
-        elif plot_type == 'bar':
-            shap.plots.bar(final_explanation, show=False)
-        elif plot_type == 'waterfall':
-            shap.plots.waterfall(final_explanation[sample_idx], show=False)
-        elif plot_type == 'grouped_waterfall':
-            if not group_metrics:
-                logger.warning("Skipping grouped_waterfall: group_metrics not provided.")
-                plt.close()
-                return
-            instance_expl = final_explanation[sample_idx]
-            grouped_vals = [instance_expl.values[i*values_per_group:(i+1)*values_per_group].sum() for i in range(len(group_metrics))]
-            grouped_expl = shap.Explanation(values=np.array(grouped_vals), base_values=instance_expl.base_values, feature_names=group_metrics)
-            shap.plots.waterfall(grouped_expl, show=False)
-
-        filename = f"{model_name_str}_shap_{plot_type}_class{class_index}"
-        if plot_type in ['waterfall', 'grouped_waterfall']:
-            filename += f"_sample{sample_idx}"
-        
-        if report_dir:
-            save_path = Path(report_dir) / "figures"; save_path.mkdir(exist_ok=True, parents=True)
-            plt.savefig(save_path / (filename + ".png"), dpi=150, bbox_inches='tight')
-        plt.close()
-
-    except Exception as e:
-        logger.error(f"Error in run_shap_analysis_eval for {model_name_str}: {e}", exc_info=True)
-
-def run_shap_analysis_eval_workswithinstance(model, X_test, feature_names=None, plot_type='summary',
-                           class_index=0, sample_idx=0, report_dir=None, y_test=None,
-                           group_metrics=None, values_per_group=20, **kwargs):
-    """
-    A robust, self-contained function to calculate SHAP values and generate plots.
-    It handles different model types and data formats internally to ensure compatibility.
-    """
-    logger.info(f"--- Running SHAP Analysis (Plot: {plot_type}, Class: {class_index}, Sample: {sample_idx}) ---")
-    
-    try:
-        # --- 1. Setup and Data Preparation ---
-        X_test_df = pd.DataFrame(X_test, columns=feature_names) if not isinstance(X_test, pd.DataFrame) else X_test.copy()
-        model_name_str = get_standardized_model_name(model)
-        base_model = model.steps[-1][1] if isinstance(model, Pipeline) else model
-        figures_dir = Path(report_dir) / 'figures' if report_dir else None
-        if figures_dir:
-            figures_dir.mkdir(parents=True, exist_ok=True)
-
-        # --- 2. Robust Explainer Initialization and Value Calculation ---
-        logger.info(f"  Initializing SHAP explainer for {model_name_str}...")
-        if isinstance(base_model, (RandomForestClassifier, GradientBoostingClassifier, xgb.XGBClassifier, LogisticRegression)):
-            explainer = shap.Explainer(model, X_test_df)
-            shap_values_raw = explainer.shap_values(X_test_df)
-        else:
-            logger.info("    Using KernelExplainer as fallback.")
-            background_data = shap.sample(X_test_df, min(100, X_test_df.shape[0]))
-            explainer = shap.KernelExplainer(model.predict_proba, background_data)
-            shap_values_raw = explainer.shap_values(X_test_df)
-
-        # --- 3. Process SHAP Values for the Target Class ---
-        is_multiclass = isinstance(shap_values_raw, list)
-        shap_values_for_class = None
-        
-        if is_multiclass:
-            if class_index < len(shap_values_raw):
-                shap_values_for_class = shap_values_raw[class_index]
-        else:
-            shap_values_for_class = shap_values_raw if class_index == 1 else -shap_values_raw
-
-        if shap_values_for_class is None:
-            logger.error("Could not extract SHAP values for the specified class.")
-            return
-
-        # --- 4. Generate Plot ---
-        plt.figure(figsize=(10, 8))
-        features_np = X_test_df.to_numpy()
-        feature_names_list = list(X_test_df.columns)
-
-        if plot_type == 'summary':
-            shap.summary_plot(shap_values_for_class, features=features_np, feature_names=feature_names_list, show=False)
-        elif plot_type == 'bar':
-            shap.summary_plot(shap_values_for_class, features=features_np, feature_names=feature_names_list, plot_type='bar', show=False)
-        elif plot_type == 'waterfall':
-            base_value = explainer.expected_value[class_index] if is_multiclass else (explainer.expected_value if class_index == 1 else 1 - explainer.expected_value)
-            temp_expl = shap.Explanation(values=shap_values_for_class[sample_idx], base_values=base_value,
-                                         data=features_np[sample_idx], feature_names=feature_names_list)
-            shap.plots.waterfall(temp_expl, show=False)
-        
-        
-        # --- 5. Save Plot ---
-        # FIX: Changed class_idx to class_index to match the function's argument name
-        filename = f"{model_name_str}_shap_{plot_type}_class{class_index}"
-        if plot_type == 'waterfall':
-            filename += f"_sample{sample_idx}"
-        
-        if figures_dir:
-            plt.savefig(figures_dir / (filename + ".png"), dpi=150, bbox_inches='tight')
-        plt.close()
-
-    except Exception as e:
-        logger.error(f"Error in run_shap_analysis_eval for {model_name_str}: {e}")
-        logger.error(traceback.format_exc())
 
 # Analyze feature group importance
 def analyze_feature_group_importance(model, X_test, num_features=9, values_per_feature=20, metrics=None, class_index=0, report_dir=None, y_test = None):
@@ -2978,7 +2483,7 @@ def analyze_feature_group_importance(model, X_test, num_features=9, values_per_f
                 explainer = shap.TreeExplainer(model) # Use original model (pipeline or base)
                 shap_values_output = explainer.shap_values(X_test)
 
-                # --- Process TreeExplainer Output ---
+                #   Process TreeExplainer Output  
                 if isinstance(shap_values_output, list): # Multiclass output
                     print(f"    TreeExplainer returned {len(shap_values_output)} classes).")
                     if class_index < len(shap_values_output):
@@ -3003,7 +2508,7 @@ def analyze_feature_group_importance(model, X_test, num_features=9, values_per_f
                 print(f"    TreeExplainer failed: {tree_e}. Falling back.")
                 values = None # Force fallback
 
-        # --- Fallback or Non-Tree Models ---
+        #   Fallback or Non-Tree Models  
         if values is None: # If TreeExplainer failed or it's not a tree model
              if hasattr(base_model, 'coef_'): # Linear models
                  print(f"    Using coefficients for {base_model_name}...")
@@ -3048,7 +2553,7 @@ def analyze_feature_group_importance(model, X_test, num_features=9, values_per_f
                      print("      Using uniform importance as last resort.")
                      values = np.ones(X_test.shape[1]) * 0.1 # Small non-zero uniform importance
 
-        # --- Ensure 'values' is 2D (samples, features) or 1D (features,) ---
+        #   Ensure 'values' is 2D (samples, features) or 1D (features,)  
         if values is None: # Should not happen with fallbacks, but check
              print(f"  ERROR: Could not determine feature importance values for {model_name}. Aborting group analysis.")
              return {}
@@ -3169,8 +2674,6 @@ def analyze_feature_group_importance(model, X_test, num_features=9, values_per_f
         return {}
 
 
-
-
 def analyze_feature_group_zones(model, X_test, feature_names, feature_indices=None, group_name="med", report_dir=None, class_index=0, plot_type='bar'):
     """
     Create a visualization showing the importance of each zone for a specific feature group
@@ -3227,7 +2730,7 @@ def analyze_feature_group_zones(model, X_test, feature_names, feature_indices=No
             if len(feature_names) != X_test.shape[1]:
                 print(f"Warning: Generated {len(feature_names)} feature names but X_test has {X_test.shape[1]} columns")
                 feature_names = [f'feaT_{i}' for i in range(X_test.shape[1])]
-        # ------------ end-------------
+ 
         
         # Get feature importances safely
         if hasattr(model, 'feature_importances_'):
@@ -3447,13 +2950,6 @@ def analyze_feature_group_zones(model, X_test, feature_names, feature_indices=No
         return None
 
 
-
-
-
-
-
-
-
 def create_feature_transformations_fit(X, feature_names=None, num_features=9, values_per_feature=20):
     """
     Calculate transformation parameters from training data
@@ -3636,20 +3132,6 @@ def evaluate_model_with_cv(model, X, y, model_name, n_splits=3, random_state=42)
         print(f"Using {original_cv_splits} folds for CV")
     
  
-    
-    # Adjust n_splits if necessary
-    # original_splits = n_splits
-    # if min_samples < n_splits:
-    #     # Use at most min_samples splits, but at least 2 if possible
-    #     n_splits = max(2, min(min_samples, 3))
-    #     print(f"\nAdjusting cross-validation: Minority class has only {min_samples} samples, "
-    #           f"reducing folds from {original_splits} to {n_splits}")
-    
-    # print(f"\nEvaluating {model_name} with {n_splits}-fold cross-validation...")
-    
-    #---------------Which CV????? ------------------------------
-    #---Option 1>>  Stratified K-Fold cross-validation
-    # Define scoring metrics, added zero_division=0 for warning
     is_binary_cv = len(np.unique(y)) == 2
     scoring = {
         'accuracy': make_scorer(accuracy_score),
@@ -3712,31 +3194,18 @@ def evaluate_model_with_cv(model, X, y, model_name, n_splits=3, random_state=42)
     header = f"{'Metric':<30} {'Train Mean':<12} {'Train Std':<10} {'Test Mean':<12} {'Test Std':<10} {'Gap':<10}" 
     print(header) 
     print("-" * len(header))
-
     
-    # for metric in metrics:
-    #     train_scores = cv_results[f'train_{metric}']
-    #     test_scores = cv_results[f'test_{metric}']
-        
-    #     train_mean = np.mean(train_scores)
-    #     train_std = np.std(train_scores)
-    #     test_mean = np.mean(test_scores)
-    #     test_std = np.std(test_scores)
-    #     gap = train_mean - test_mean
-        
-    #     print(f"{metric:<15} {train_mean:.4f} {train_std:.4f} {test_mean:.4f} {test_std:.4f} {gap:.4f}")
-    
-    for metric_key_name in metrics_to_report: # Iterate using the actual keys used in scoring
-        train_scores = cv_results_dict.get(f'train_{metric_key_name}', np.array([np.nan])) # [cite: 664]
-        test_scores = cv_results_dict.get(f'test_{metric_key_name}', np.array([np.nan])) # [cite: 664]
+    for metric_key_name in metrics_to_report: 
+        train_scores = cv_results_dict.get(f'train_{metric_key_name}', np.array([np.nan]))
+        test_scores = cv_results_dict.get(f'test_{metric_key_name}', np.array([np.nan])) # 
 
-        train_mean = np.nanmean(train_scores) # [cite: 665]
-        train_std = np.nanstd(train_scores) # [cite: 665]
-        test_mean = np.nanmean(test_scores) # [cite: 665]
-        test_std = np.nanstd(test_scores) # [cite: 665]
-        gap = train_mean - test_mean if not (np.isnan(train_mean) or np.isnan(test_mean)) else np.nan # [cite: 665]
+        train_mean = np.nanmean(train_scores) 
+        train_std = np.nanstd(train_scores) 
+        test_mean = np.nanmean(test_scores) 
+        test_std = np.nanstd(test_scores)
+        gap = train_mean - test_mean if not (np.isnan(train_mean) or np.isnan(test_mean)) else np.nan 
 
-        print(f"{metric_key_name:<30} {train_mean:.4f} {train_std:.4f} {test_mean:.4f} {test_std:.4f} {gap:.4f}") # [cite: 665]
+        print(f"{metric_key_name:<30} {train_mean:.4f} {train_std:.4f} {test_mean:.4f} {test_std:.4f} {gap:.4f}") 
 
     
     # Check for overfitting
@@ -3841,9 +3310,9 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
     if not tune_hyperparams and sampling_method != 'none':  
         print(f"Applying {sampling_method} sampling globally...")
         if sampling_method == 'smote': 
-            min_class_samples = min(np.bincount(y_train)[np.bincount(y_train) > 0]) # [cite: 798]
-            k_neighbors = min(min_class_samples - 1, 3); # [cite: 798]
-            sampler = SMOTE(random_state=42, k_neighbors=k_neighbors) if k_neighbors >=1 else RandomOverSampler(random_state=42) # [cite: 798, 799]
+            min_class_samples = min(np.bincount(y_train)[np.bincount(y_train) > 0]) 
+            k_neighbors = min(min_class_samples - 1, 3); 
+            sampler = SMOTE(random_state=42, k_neighbors=k_neighbors) if k_neighbors >=1 else RandomOverSampler(random_state=42) 
         elif sampling_method == 'random_over': sampler = RandomOverSampler(random_state=42) 
         elif sampling_method == 'random_under': sampler = RandomUnderSampler(random_state=42) 
         else: sampler = None
@@ -3852,17 +3321,17 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
         # Plotting distributions
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
         ax1.bar(np.unique(y_train_original), np.bincount(y_train_original)); ax1.set_title('Original'); 
-        ax2.bar(np.unique(y_train), np.bincount(y_train)); ax2.set_title(f'After {sampling_method.upper()}'); # [cite: 806, 807]
-        plt.tight_layout(); save_figure(plt.gcf(), f"1_class_distribution_comparison_{sampling_method}_{normalization}", report_dir); plt.close(); # [cite: 807]
+        ax2.bar(np.unique(y_train), np.bincount(y_train)); ax2.set_title(f'After {sampling_method.upper()}'); 
+        plt.tight_layout(); save_figure(plt.gcf(), f"1_class_distribution_comparison_{sampling_method}_{normalization}", report_dir); plt.close(); 
 
-    elif sampling_method == 'none': # [cite: 808]
-        print("No global sampling method selected.") # [cite: 808]
-        plot_class_distribution(y_train_original, le, '1_class_distribution_Original') # [cite: 808]
-        plt.tight_layout(); save_figure(plt.gcf(), f"1_class_distribution_Original_{sampling_method}_{normalization}", report_dir); plt.close() # [cite: 808, 809]
-    else: # tune_hyperparams is True and sampling_method is not 'none'
-         print(f"Skipping global sampling (tune_hyperparams=True). Sampling ('{sampling_method}') will be handled within CV if applicable.") # [cite: 807, 808]
-         plot_class_distribution(y_train_original, le, '1_class_distribution_Original_CV_Sampling') #
-         plt.tight_layout(); save_figure(plt.gcf(), f"1_class_distribution_Original_CV_Sampling_{sampling_method}_{normalization}", report_dir); plt.close() #
+    elif sampling_method == 'none':
+        print("No global sampling method selected.")
+        plot_class_distribution(y_train_original, le, '1_class_distribution_Original') 
+        plt.tight_layout(); save_figure(plt.gcf(), f"1_class_distribution_Original_{sampling_method}_{normalization}", report_dir); plt.close() 
+    else:
+         print(f"Skipping global sampling (tune_hyperparams=True). Sampling ('{sampling_method}') will be handled within CV if applicable.") 
+         plot_class_distribution(y_train_original, le, '1_class_distribution_Original_CV_Sampling') 
+         plt.tight_layout(); save_figure(plt.gcf(), f"1_class_distribution_Original_CV_Sampling_{sampling_method}_{normalization}", report_dir); plt.close() 
 
 
     if analyze_minkowski_dist: analyze_minkowski(X_train, p_values=[1, 2, 3])  
@@ -3870,20 +3339,19 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
     class_distribution = np.bincount(y_train) 
     base_models = create_base_models(num_classes, class_distribution) 
     
-    if tune_hyperparams: # [cite: 810]
-        print(f"Tuning hyperparameters for {'binary' if is_binary else 'multiclass'} classification...") # [cite: 810]
-        param_grids = binary_param_grids if is_binary else multiclass_param_grids # [cite: 810, 811]
-        tuned_models = {} # [cite: 813]
-        for name, model_instance in base_models.items(): # [cite: 813]
-            if name in param_grids: # [cite: 813]
-                model_grid = param_grids[name] # [cite: 814]
-                # Pass sampling_method to grid_search_model [cite: 815]
-                best_model_tuned, best_params = grid_search_model(model_instance, model_grid, X_train, y_train, name, cv=5, report_dir=report_dir, sampling_method=sampling_method) # [cite: 814, 815]
-                tuned_models[name] = best_model_tuned # [cite: 815]
-                print(f"Best parameters for {name}: {best_params}") # [cite: 816]
+    if tune_hyperparams: 
+        print(f"Tuning hyperparameters for {'binary' if is_binary else 'multiclass'} classification...") 
+        param_grids = binary_param_grids if is_binary else multiclass_param_grids
+        tuned_models = {} 
+        for name, model_instance in base_models.items(): 
+            if name in param_grids: 
+                model_grid = param_grids[name] 
+                best_model_tuned, best_params = grid_search_model(model_instance, model_grid, X_train, y_train, name, cv=5, report_dir=report_dir, sampling_method=sampling_method) 
+                tuned_models[name] = best_model_tuned 
+                print(f"Best parameters for {name}: {best_params}") 
             else:
-                tuned_models[name] = model_instance # [cite: 816]
-        base_models = tuned_models # [cite: 817]
+                tuned_models[name] = model_instance 
+        base_models = tuned_models 
 
     results = {}; accuracies = {}; f1_scores_map = {}; trained_models = {} 
     for name, model_to_train in base_models.items(): 
@@ -3900,26 +3368,24 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
     best_model = trained_models.get(best_model_name) if best_model_name else None
 
     if best_model_name and best_model: 
-        print(f"\nBest model: {best_model_name} (F1 Score: {f1_scores_map[best_model_name]:.4f})") # [cite: 860]
-        # ... (plot_learning_curve, save_best_model as before) ... 
-        if best_model_name in ['Random Forest', 'Gradient Boosting', 'XGBoost', 'Logistic Regression', 'SVM']: # [cite: 860]
+        print(f"\nBest model: {best_model_name} (F1 Score: {f1_scores_map[best_model_name]:.4f})") 
+        if best_model_name in ['Random Forest', 'Gradient Boosting', 'XGBoost', 'Logistic Regression', 'SVM']: 
              plot_learning_curve(best_model, X_train, y_train, X_test, y_test) 
-        save_best_model(best_model, best_model_name, { # [cite: 861]
-            'is_binary': is_binary, 'preserve_zones': preserve_zones, 'sort_features': sort_features, # [cite: 861]
-            'normalization': normalization, 'sampling_method': sampling_method, 'num_features': X.shape[1], # [cite: 861]
-            'accuracy': accuracies[best_model_name], 'f1_score': f1_scores_map[best_model_name] # [cite: 861]
+        save_best_model(best_model, best_model_name, { 
+            'is_binary': is_binary, 'preserve_zones': preserve_zones, 'sort_features': sort_features, 
+            'normalization': normalization, 'sampling_method': sampling_method, 'num_features': X.shape[1], 
+            'accuracy': accuracies[best_model_name], 'f1_score': f1_scores_map[best_model_name] 
         })
 
 
     if analyze_shap and best_model is not None: 
         print(f"\nPerforming SHAP analysis on the best model ({best_model_name})...") 
-        # feature_names and actual_group_metrics are available from prepare_data
         common_shap_args_run = {
             "X_test": X_test, "feature_names": feature_names, "report_dir": report_dir,
             "is_binary": is_binary, "y_test": y_test,
             "group_metrics": actual_group_metrics, 
             "num_feature_groups": len(actual_group_metrics),
-            "values_per_group": 20 # Default, or pass from config
+            "values_per_group": 20 
         }
         try: 
             run_shap_analysis(best_model, plot_type='summary', **common_shap_args_run) 
@@ -3927,8 +3393,8 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
             if isinstance(best_model, (RandomForestClassifier, GradientBoostingClassifier, xgb.XGBClassifier)): 
                 run_shap_analysis(best_model, plot_type='beeswarm', **common_shap_args_run) 
             sample_idx = 0 
-            run_shap_analysis(best_model, sample_idx=sample_idx, plot_type='waterfall', **common_shap_args_run) # [cite: 881]
-            run_shap_analysis(best_model, sample_idx=sample_idx, plot_type='force', **common_shap_args_run) # [cite: 881]
+            run_shap_analysis(best_model, sample_idx=sample_idx, plot_type='waterfall', **common_shap_args_run) 
+            run_shap_analysis(best_model, sample_idx=sample_idx, plot_type='force', **common_shap_args_run) 
             if len(X_test) > 1: run_shap_analysis(best_model, sample_idx=1, plot_type='waterfall', **common_shap_args_run) 
             if is_binary and len(X_test) > 5: 
                 minority_idx = np.where(y_test == np.bincount(y_test).argmin())[0] 
@@ -3938,989 +3404,36 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
         except Exception as e: 
             print(f"Error during SHAP analysis calls: {e}"); traceback.print_exc() 
 
-        # Call analyze_feature_group_importance with actual metrics
         if best_model:
             num_classes_for_loop = len(le.classes_) if not is_binary else 1 #
             for c_idx in range(num_classes_for_loop): #
-                class_to_analyze = c_idx if not is_binary else 0 # For binary, SHAP often gives for class 1, but importance is general or for positive
+                class_to_analyze = c_idx if not is_binary else 0 
                 print(f"Analyzing feature group importance for class {class_to_analyze if not is_binary else 'positive'}")
                 analyze_feature_group_importance(
                     best_model, X_test,
                     num_features=len(actual_group_metrics),
-                    values_per_feature=20, # Or from config
+                    values_per_feature=20, 
                     metrics=actual_group_metrics,
-                    class_index=class_to_analyze, # Pass the class index
+                    class_index=class_to_analyze, 
                     report_dir=report_dir,
                     y_test=y_test
                 )
-            # The multi-class plotting for analyze_feature_group_importance was removed as it's better to call it per class.
-            # The old logic for subplots is replaced by the loop above.
 
 
     cv_results_data_run = None
     if best_model:
-        cv_results_data_run = evaluate_model_with_cv(best_model, X, y, best_model_name, n_splits=10, random_state=42) # [cite: 905, 906]
+        cv_results_data_run = evaluate_model_with_cv(best_model, X, y, best_model_name, n_splits=10, random_state=42) 
     
-    best_model_f1_run = f1_scores_map.get(best_model_name, 0.0) if best_model_name else 0.0 # [cite: 907, 908]
+    best_model_f1_run = f1_scores_map.get(best_model_name, 0.0) if best_model_name else 0.0 
 
-    return best_model, { # [cite: 908]
-        'trained_models': trained_models, 'accuracies': accuracies, 'f1_scores': f1_scores_map, # [cite: 908]
-        'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test, 'le': le, # [cite: 908, 909]
-        'feature_names': feature_names, 'best_model_name': best_model_name, # [cite: 909]
-        'f1_score': best_model_f1_run, # [cite: 909]
+    return best_model, { 
+        'trained_models': trained_models, 'accuracies': accuracies, 'f1_scores': f1_scores_map, 
+        'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test, 'le': le, 
+        'feature_names': feature_names, 'best_model_name': best_model_name, 
+        'f1_score': best_model_f1_run, 
         'actual_group_metrics': actual_group_metrics,
-        'cv_results': cv_results_data_run # [cite: 909]
+        'cv_results': cv_results_data_run 
     }
-
-
-def run_classification_pipeline_og(data_path, normalization='standard', sampling_method='none', 
-                              is_binary=True, preserve_zones=False, sort_features='none',
-                              feature_indices=None, selected_features=None, tune_hyperparams=False,
-                              analyze_shap=False, analyze_minkowski_dist=False,
-                              transform_features=False, report_dir=None):
-    """
-    Run classification pipeline with all options
-    
-    Args:
-        data_path: Path to data
-        normalization: Normalization technique
-        sampling_method: Sampling method for class imbalance
-        is_binary: Whether to use binary classification
-        preserve_zones: Whether to preserve zone-wise structure
-        sort_features: Sorting strategy ('none', 'ascend_all', 'descend_all', 'custom')
-        feature_indices: List of specific feature indices to use (0-8)
-        selected_features: List of selected features
-        tune_hyperparams: Whether to tune hyperparameters
-        analyze_shap: Whether to perform SHAP analysis
-        analyze_minkowski_dist: Whether to analyze Minkowski distances
-        report_dir: Directory to save reports and visualizations
-        
-    Returns:
-        best_model: Best model
-        results: Dictionary of results
-    """
-    # Set seeds for reproducibility
-    set_seeds()
-    
-    # Load data
-    print(f"Loading data from {data_path}...")
-    data = pd.read_csv(data_path)
-
-    # Select features if specified
-    if selected_features is not None:
-        data = data[selected_features + [data.columns[-1]]]
-    elif feature_indices is not None:
-        # Select only specified feature indices (each with 20 columns)
-        selected_columns = []
-        for idx in feature_indices:
-            start_col = idx * 20
-            end_col = start_col + 20
-            selected_columns.extend(list(range(start_col, end_col)))
-        
-        # Add the target column (last column)
-        selected_columns.append(data.shape[1] - 1)
-        
-        # Filter the dataframe
-        data = data.iloc[:, selected_columns]
-        print(f"Selected features: {feature_indices}, total columns: {len(selected_columns)}")
-    # No else clause needed - use all features by default
-        
-    
-    print(f"Preparing data (binary={is_binary}, preserve_zones={preserve_zones}, sort_features={sort_features}, normalization={normalization}, transform_features=False)...")
-    X, y, le, scaler, feature_names = prepare_data(data, 
-                                        normalization=normalization, 
-                                        is_binary=is_binary,
-                                        preserve_zones=preserve_zones,
-                                        sort_features=sort_features,
-                                        transform_features=False)  # No feature transformation yet
-    
-    # Split data BEFORE any advanced feature transformations
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=42, stratify=y)
-    y_train_original = y_train.copy()
-    print("Printing split statistics to verify stratified balance \n")
-    print(f"Training set class distribution: {Counter(y_train)}")
-    print(f"Test set class distribution: {Counter(y_test)}")
-    
-    # Now apply feature transformation separately to train and test sets
-    # Important: fit only on training data, transform both
-    if transform_features:
-        print("Applying feature transformations...")
-        # Calculate means, stds, etc. for features using ONLY training data
-        X_train_transformed, train_feature_names = create_feature_transformations_transform(
-            X_train, feature_names, 
-            num_features=len(feature_indices) if feature_indices is not None else 9,
-            values_per_feature=20
-        )
-        
-        # For test data, we need to implement a transformation that uses
-        # the same statistics as computed from the training data
-        # This requires modifying create_feature_transformations to save and reuse stats
-        # For now, we'll just transform test data independently (not ideal)
-        X_test_transformed = create_feature_transformations_transform(
-            X_test, params, feature_names=feature_names,
-            num_features=len(feature_indices) if feature_indices is not None else 9,
-            values_per_feature=20
-        )
-        
-        # Update X_train and X_test
-        X_train = X_train_transformed
-        X_test = X_test_transformed
-        feature_names = train_feature_names
-        
-    
-    # Check for NaN values before applying sampling
-    if np.isnan(X_train).any():
-        print(f"Warning: {np.isnan(X_train).sum()} NaN values detected in training data.")
-        print("Replacing NaN values with feature means...")
-        from sklearn.impute import SimpleImputer
-        imputer = SimpleImputer(strategy='mean')
-        X_train = imputer.fit_transform(X_train)
-        X_test = imputer.transform(X_test)  # Use same imputer for test data
-        
-        # Verify NaNs are gone
-        if np.isnan(X_train).any() or np.isnan(X_test).any():
-            print("Error: NaN values still present after imputation.")
-            raise ValueError("Failed to remove all NaN values")
-        else:
-            print("NaN values successfully removed.")
-    
-    # Plot original class distribution
-    # plot_class_distribution(y_train, le, 'Original Class Distribution')
-    from report_generation import save_figure
-    
-    # Option 1: Choose sampling methods (Globally)- ONLY to training data
-    if not tune_hyperparams and sampling_method != 'none': 
-        print(f"Applying {sampling_method} sampling to training data...")
-        sampler = None # Initialize
-        if sampling_method == 'smote':
-            # Calculate minimum safe k value (neighbors) for SMOTE
-            min_class_samples = min(np.bincount(y_train)[np.bincount(y_train) > 0])
-            k_neighbors = min(min_class_samples - 1, 3)  # At least 1, at most 5
-            if k_neighbors < 1:
-                print("Warning: Smallest class has too few samples for SMOTE. Using RandomOverSampler instead.")
-                sampler = RandomOverSampler(random_state=42)
-            else:
-                print(f"Using SMOTE with k_neighbors={k_neighbors} for small classes.")
-                sampler = SMOTE(random_state=42, k_neighbors=k_neighbors)
-        elif sampling_method == 'random_over':
-            sampler = RandomOverSampler(random_state=42)
-        elif sampling_method == 'random_under':
-            sampler = RandomUnderSampler(random_state=42)
-        else: print(f"Warning: Unknown global sampling_method '{sampling_method}'. No sampling applied.")
-
-        if sampler: # Proceed only if a sampler was initialized
-            X_train, y_train = sampler.fit_resample(X_train, y_train)
-            print(f"Applied {sampling_method}. New training set shape: {X_train.shape}, New label distribution: {Counter(y_train)}")
-    #  Option 2: More nuanced balancing
-    # if sampling_method != 'none':
-    #     print(f"Applying {sampling_method} sampling...")
-        
-    #     # Special handling for very small datasets
-    #     if len(y_train) < 100:
-    #         # For tiny datasets, use synthetic minority oversampling but with careful parameters
-    #         from imblearn.over_sampling import SMOTENC, SMOTE
-            
-    #         # Check if any categorical features present
-    #         categorical_mask = [False] * X_train.shape[1]  # Assume all numeric
-            
-    #         # Calculate k neighbors parameter based on minority class size
-    #         class_counts = np.bincount(y_train)
-    #         min_samples = min(class_counts[class_counts > 0])
-    #         k_neighbors = min(min_samples-1, 3)  # Use at most 3 neighbors, must be less than min class size
-            
-    #         if k_neighbors < 1:
-    #             print("Warning: Minority class too small for SMOTE. Using random oversampling.")
-    #             from imblearn.over_sampling import RandomOverSampler
-    #             sampler = RandomOverSampler(random_state=42)
-    #         else:
-    #             print(f"Using SMOTE with k_neighbors={k_neighbors} for small dataset")
-    #             # If continuous data only
-    #             sampler = SMOTE(random_state=42, k_neighbors=k_neighbors)
-            
-    #         X_train, y_train = sampler.fit_resample(X_train, y_train)
-    #         print(f"After balancing: {np.bincount(y_train)}") 
-        
-        # plot_class_distribution(y_train, le, f'Class Distribution After {sampling_method}')
-    
-        # create side-by-side comparison
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-        
-        # Plot original distribution
-        ax1.bar(np.unique(y_train_original), np.bincount(y_train_original))
-        ax1.set_title('Original Class Distribution')
-        ax1.set_xlabel('Class')
-        ax1.set_ylabel('Count')
-        
-        # Plot distribution after sampling
-        ax2.bar(np.unique(y_train), np.bincount(y_train))
-        ax2.set_title(f'After {sampling_method.upper()} ({normalization.capitalize()})')
-        ax2.set_xlabel('Class')
-        ax2.set_ylabel('Count')
-        plt.tight_layout()
-        if report_dir: save_figure(plt.gcf(), f"1_class_distribution_comparison_{sampling_method}_{normalization}", report_dir)
-        plt.close(fig)
-    else:
-        if sampling_method != 'none' and tune_hyperparams:
-            print(f"Skipping global sampling (tune_hyperparams=True). Sampling will be handled within CV if applicable.")
-        elif sampling_method == 'none': 
-            print("No sampling method selected.")
-            # figsize=(16, 6)
-            # plt.bar(np.unique(y_train_original), np.bincount(y_train_original))
-        fig = plt.figure(figsize=(8,6))
-        plt.xlabel('Class')
-        plt.ylabel('Count')
-        plot_class_distribution(y_train_original, le, '1_class_distribution_Original')
-        plt.tight_layout()
-        if report_dir: save_figure(plt.gcf(), f"1_class_distribution_Original_{sampling_method}_{normalization}", report_dir)
-        plt.close(fig)
-
-    
-    # Analyze Minkowski distances if requested
-    if analyze_minkowski_dist:
-        print("Analyzing Minkowski distances...")
-        analyze_minkowski(X_train, p_values=[1, 2, 3])
-    
-    # Define models
-    num_classes = len(np.unique(y))
-    print(f"Number of classes: {num_classes}")
-    class_distribution = np.bincount(y_train)
-    print(f"Class distribution in training data: {class_distribution}")
-    
-
-    # Define models with optimized configurations
-    base_models = create_base_models(num_classes, class_distribution)
-    
-    
-    # Tune hyperparameters if requested
-    if tune_hyperparams:
-        print(f"Tuning hyperparameters for {'binary' if is_binary else 'multiclass'} classification...")
-        
-        # Choose appropriate parameter grids based on classification type
-        if is_binary:
-            print("Using specialized parameter grids for binary classification")
-            param_grids = binary_param_grids
-        else:
-            print("Using parameter grids for multiclass classification")
-            param_grids = multiclass_param_grids
-        
-        # Debug output - print all model names and their param grid sizes
-        for name in base_models:
-            if name in param_grids:
-                grid_size = 1
-                for param, values in param_grids[name].items():
-                    grid_size *= len(values)
-                print(f"Model {name}: Parameter grid has {grid_size} combinations")
-        
-        # Tune each model with appropriate grid
-        tuned_models = {}
-        for name, model in base_models.items():
-            if name in param_grids:
-                print(f"\n{'='*50}\nTuning hyperparameters for {name}\n{'='*50}")
-                
-                # Select parameter grid for this model
-                model_grid = param_grids[name]
-                
-                # Run grid search to find best params
-                best_model, best_params = grid_search_model(
-                    model, model_grid, X_train, y_train, name, cv=3, report_dir=report_dir,sampling_method=sampling_method  # <-- ADDED
-                )
-                
-                # Store tuned model
-                tuned_models[name] = best_model
-                
-                print(f"Best parameters for {name}: {best_params}")
-            else:
-                # If no grid defined, keep original model
-                print(f"No parameter grid defined for {name}, using default configuration")
-                tuned_models[name] = model
-        
-        # Replace base models with tuned versions
-        base_models = tuned_models
-        
-    #     # Define parameter grids for each model
-    #     if is_binary:
-    #         print("Using specialized parameter grids for binary classification")
-    #         param_grids = {
-    #             'XGBoost': {
-    #                 'n_estimators': [100, 200],
-    #                 'learning_rate': [0.01, 0.05],
-    #                 'max_depth': [2, 3],
-    #                 'subsample': [0.7, 0.8],
-    #                 'colsample_bytree': [0.7, 0.8],
-    #                 'scale_pos_weight': [1.0, sum(y_train==0)/sum(y_train==1)],  # Balanced weight
-    #                 'min_child_weight': [1, 3],
-    #                 'gamma': [0, 0.1]
-    #             },
-    #             # Add specialized grids for other models
-    #         }
-    #     else:
-    #         # Original parameter grids
-    #         # Define parameter grids for each model
-    #         param_grids = {
-    #         'Logistic Regression': {
-    #             'C': [0.01, 0.05, 0.1],  # Focus on stronger regularization
-    #             'penalty': ['l2'],  # Start with L2 only
-    #             'solver': ['liblinear' if num_classes == 2 else 'saga']
-    #         },
-    #         'SVM': {
-    #             'C': [0.01, 0.1, 1.0],
-    #             'kernel': ['linear', 'rbf'],
-    #             'gamma': ['scale', 'auto']
-    #         },           
-    #         'SVM_pipeline': {
-    #             'poly__degree': [1, 2],  # Lower degree polynomials
-    #             'svm__C': [0.1, 1.0],
-    #             'svm__gamma': ['scale']
-    #         },
-    #         'Random Forest': {
-    #             'n_estimators': [50, 100],
-    #             'max_depth': [2, 3, 5],
-    #             # 'min_samples_split': [5, 10],
-    #             'min_samples_leaf': [4, 8, 10]
-    #         },
-    #         'Gradient Boosting': {
-    #             'n_estimators': [50, 100],
-    #             'learning_rate': [0.01, 0.05],
-    #             'max_depth': [2, 3],
-    #             'subsample': [0.7, 0.8],
-    #             'min_samples_split': [5, 10]
-    #         },
-    #         'XGBoost': {
-    #         #     'n_estimators': [50, 100],
-    #         #     'learning_rate': [0.01, 0.05],
-    #         #     'max_depth': [2, 3],
-    #         #     'subsample': [0.7, 0.8],
-    #         #     'colsample_bytree': [0.7, 0.8],
-    #         #     'reg_alpha': [1, 2],
-    #         #     'reg_lambda': [5],
-    #         #     'min_child_weight': [3]
-    #         # },
-    #             'n_estimators': [30, 50],  # Fewer trees
-    #             'learning_rate': [0.0005, 0.001, 0.05],  # Extremely slow learning
-    #             'max_depth': [1,2],  # Force decision stumps (depth-1 trees)
-    #             'min_child_weight': [3, 10, 15],  # 5,8,10 Require much more data per node
-    #             'gamma': [10, 20],  # Very high minimum gain for splitting
-    #             'subsample': [0.4, 0.5, 0.7],  # Sample only 40-50% of data per tree
-    #             'colsample_bytree': [0.3, 0.8],  # Sample only 30-40% of features per tree
-    #             'reg_alpha': [1,50, 100],  # Extreme L1 regularization
-    #             'reg_lambda': [5,50, 100],  # Extreme L2 regularization
-    #             # 'scale_pos_weight': [1],  # For multiclass, keep as 1
-    #             # 'num_class': [4],  # Explicitly specify number of classes
-    #             # 'objective': ['multi:softmax']
-    #         },
-    #         # Grid search on this pipeline
-    #         'xgb_pipeline': {
-    #             'feature_select__k': [5, 8, 10],
-    #             'pca__n_components': [3, 4, 5],
-    #             'xgb__learning_rate': [0.0005, 0.001, 0.005],
-    #             'xgb__min_child_weight': [10, 15, 20]
-    #         },
-            
-    #         'Naive Bayes': {'var_smoothing': [1e-7, 1e-6, 1e-5, 1e-4]
-    #                         },  # Default> 1e-9}
-    #         # 'Complement NB': {'alpha': [0.5, 1.0, 2.0], 
-    #         #                 'norm': [True, False]
-    #         #                 },
-    #         # 'Multinomial NB': {
-    #         #                     'alpha': [0.01, 0.1, 0.5, 1.0, 2.0]
-    #         #                     # 'fit_prior': [True, False]
-    #         #                 },
-    #         'Bernoulli NB': {
-    #                         'alpha': [0.1, 2.0, 5.0, 10.0], 
-    #                         'binarize': [0.0,0.05, 0.1],
-    #                         'fit_prior': [True]  # Try with/without prior fitting
-    #                         },
-    #         'knn_model' : {
-    #                         'n_neighbors': [5, 7, 9, 11],
-    #                         'weights': ['uniform', 'distance'],
-    #                         'metric': ['euclidean', 'cosine']
-    #         },
-    #         'stump'     : {
-    #                         'min_samples_leaf': [5, 10, 15, 20],
-    #                         'criterion': ['gini', 'entropy']
-    #                     }        
-    #     }
-
-    #     # Add separate grid for elasticnet penalty (Logistic Regression)
-    #         if 'Logistic Regression' in base_models and num_classes > 2:
-    #             elasticnet_grid = {
-    #                 'C': [0.01, 0.05, 0.1],
-    #                 'penalty': ['elasticnet'],
-    #                 'solver': ['saga'],  # Only saga supports elasticnet
-    #                 'l1_ratio': [0.2, 0.5, 0.8]
-    #             }
-                
-    #             # Try both L2 and elasticnet separately
-    #             l2_model, l2_params = grid_search_model(
-    #                 LogisticRegression(max_iter=5000, class_weight='balanced', random_state=42),
-    #                 param_grids['Logistic Regression'], X_train, y_train, "Logistic Regression (L2)"
-    #             )
-                
-    #             elasticnet_model, elasticnet_params = grid_search_model(
-    #                 LogisticRegression(max_iter=5000, class_weight='balanced', random_state=42),
-    #                 elasticnet_grid, X_train, y_train, "Logistic Regression (Elasticnet)"
-    #             )
-                
-    #             # Compare models on validation set
-    #             X_train_sub, X_val, y_train_sub, y_val = train_test_split(
-    #                 X_train, y_train, test_size=0.15, random_state=42, stratify=y_train
-    #             )
-                
-    #             l2_model.fit(X_train_sub, y_train_sub)
-    #             elasticnet_model.fit(X_train_sub, y_train_sub)
-                
-    #             l2_score = f1_score(y_val, l2_model.predict(X_val), average='weighted')
-    #             elasticnet_score = f1_score(y_val, elasticnet_model.predict(X_val), average='weighted')
-                
-    #             # Choose the better model
-    #             if elasticnet_score > l2_score:
-    #                 base_models['Logistic Regression'] = elasticnet_model
-    #                 print(f"Using elasticnet model (F1: {elasticnet_score:.4f})")
-    #             else:
-    #                 base_models['Logistic Regression'] = l2_model
-    #                 print(f"Using L2 model (F1: {l2_score:.4f})")
-                
-    #             # Skip regular grid search for Logistic Regression
-    #             del param_grids['Logistic Regression']
-    #             # del base_models['Logistic Regression']    
-    #             # Tune hyperparameters for each model
-    #             for name in base_models:
-    #                 if name in param_grids:
-    #                     base_models[name], best_params = grid_search_model(
-    #                         base_models[name], param_grids[name], X_train, y_train, name
-    #                     )
-    #                     print(f"Best parameters for {name}: {best_params}")
-    #                 else:
-    #                     print(f"Skipping grid search for {name} (no parameter grid defined)")
-    
-    # # # Create a voting classifier with all models
-    # # voting_clf = VotingClassifier(
-    # #     estimators=[(name, model) for name, model in base_models.items()],
-    # #     voting='soft' if all(hasattr(model, 'predict_proba') for model in base_models.values()) else 'hard'
-    # # )
-    # # voting classifier with only 3 diverse models
-    # voting_clf = VotingClassifier(
-    # estimators=[
-    #     ('lr', base_models['Logistic Regression']),
-    #     ('rf', base_models['Random Forest']),
-    #     ('svm', base_models['SVM'])
-    #     ],
-    #     voting='soft'
-    # )
-    # base_models['Voting Classifier'] = voting_clf
-    
-    # # Create a stacking classifier
-    # base_classifiers = {
-    #     'rf': RandomForestClassifier(random_state=42),
-    #     'gb': GradientBoostingClassifier(random_state=42),
-    #     'lr': LogisticRegression(random_state=42, max_iter=5000,  solver='liblinear' if num_classes == 2 else 'saga')
-    # }
-
-    # # Create a stacking classifier with hyperparameters
-    # stacking_params_svc = {
-    #     'stacking_classifier__rf__max_depth': [2, 3, 5],
-    #     'stacking_classifier__rf__min_samples_leaf': [5, 10],
-    #     'stacking_classifier__gb__learning_rate': [0.01, 0.05],
-    #     'stacking_classifier__gb__max_depth': [2, 3],
-    #     'stacking_classifier__lr__C': [0.1, 1.0, 10.0],
-    #     'stacking_classifier__final_estimator__C': [0.1, 1.0, 10.0],
-    #     'stacking_classifier__final_estimator__kernel': ['linear', 'rbf'],
-    #     'stacking_classifier__final_estimator__degree': [2, 3],
-    #     # 'stacker__final_estimator__C': [0.1, 1.0, 10.0],
-    #     # 'stacker__final_estimator__kernel': ['linear', 'rbf'], # Removed 'poly' for simplicity
-    #     'stacking_classifier__final_estimator__gamma': ['scale', 0.1, 1.0], # Only for RBF
-    #     'stacking_classifier__final_estimator__class_weight': [None, 'balanced']
-    # }
-    
-    # stacking_params_lr = {
-    #     'stacking_classifier__rf__max_depth': [2, 3, 5],
-    #     'stacking_classifier__rf__min_samples_leaf': [5, 10],
-    #     'stacking_classifier__gb__learning_rate': [0.01, 0.05],
-    #     'stacking_classifier__gb__max_depth': [2, 3],
-    #     'stacking_classifier__lr__C': [0.1, 1.0, 10.0],
-    #     'stacking_classifier__final_estimator__C': [0.001, 0.1, 1.0, 10.0],
-    #     # 'stacking_classifier__final_estimator__kernel': ['poly', 'rbf'],
-    #     # 'stacking_classifier__final_estimator__degree': [2, 3],
-    #     'stacking_classifier__final_estimator__penalty': ['l2'], 
-    #     'stacking_classifier__final_estimator__solver': ['liblinear'] ,
-    #     'stacking_classifier__final_estimator__class_weight': [None, 'balanced'],  
-    # }
-
-    # # Add stacking classifier to base_models
-    # base_models['Stacking Classifier'] = StackingClassifier(
-    #     estimators=[(name, clf) for name, clf in base_classifiers.items()],
-    #     final_estimator=SVC(probability=True, random_state=42),
-    #     cv=5
-    # )
-    # # Add stacking params to param_grids if hyperparameter tuning is enabled
-    # if tune_hyperparams:
-    #     param_grids['Stacking Classifier'] = stacking_params_svc
-    #     # param_grids['Stacking Classifier'] = stacking_params_lr
-    #     # base_models['Stacking Classifier'] = StackingClassifier(
-    #     #     estimators=[(name, clf) for name, clf in base_classifiers.items()],
-    #     #     final_estimator=LogisticRegression(random_state=42, max_iter=3000, solver='liblinear'),
-    #     #     cv=5
-    #     # )
-    
-    # Train and evaluate models
-    print("Training and evaluating models...")
-    results = {}
-    accuracies = {}
-    f1_scores = {}
-    roc_auc_scores = {} # added
-    avg_precision_scores = {} 
-    trained_models = {}
-    
-    # for name, model in base_models.items():
-    #     trained_model, y_pred = train_evaluate_model(
-    #         model, X_train, X_test, y_train, y_test, name, le
-    #     )
-    #     trained_models[name] = trained_model
-    #     accuracies[name] = accuracy_score(y_test, y_pred)
-    #     f1_scores[name] = f1_score(y_test, y_pred, average='weighted')
-        
-    #     # Save results
-    #     save_results(
-    #         name, accuracies[name], str(trained_model.get_params()),
-    #         X.shape[1], data_path, is_binary, preserve_zones, sort_features,
-    #         normalization, sampling_method, y_test, y_pred
-    #     )
-    for name, model_instance in base_models.items(): # Changed 'model'->'model_instance' to avoid conflict
-        trained_model_instance, y_pred, roc_auc, avg_precision = train_evaluate_model( # Capture new metrics
-            model_instance, X_train, X_test, y_train, y_test, name, le 
-        )
-        trained_models[name] = trained_model_instance 
-        accuracies[name] = accuracy_score(y_test, y_pred) 
-        current_f1 = f1_score(y_test, y_pred, average='weighted') 
-        f1_scores[name] = current_f1 
-        roc_auc_scores[name] = roc_auc
-        avg_precision_scores[name] = avg_precision
-
-        save_results( 
-            name, accuracies[name], roc_auc_scores[name], avg_precision_scores[name],
-            str(trained_model_instance.get_params() if hasattr(trained_model_instance, 'get_params') else {}),
-            X.shape[1], data_path, is_binary, preserve_zones, sort_features, 
-            normalization, sampling_method, y_test, y_pred 
-        )
-    
-    # Print performance comparison
-    print("\nModel Performance Comparison:")
-    for name in accuracies:
-        print(f"{name} - Accuracy: {accuracies[name]:.4f}, F1 Score: {f1_scores[name]:.4f}, ROC AUC: {roc_auc_scores.get(name, 'N/A')}, Avg Precision: {avg_precision_scores.get(name, 'N/A')}") 
-    
-    best_model_name = None
-    best_model_instance_overall = None
-    
-    # Find best model based on F1 score
-    # best_model_name = max(f1_scores, key=f1_scores.get)
-    # best_model = trained_models[best_model_name]
-    # best_model_f1_score = f1_scores[best_model_name]
-    if f1_scores:
-        best_model_name = max(f1_scores, key=f1_scores.get) #if f1_scores else None 
-        best_model_instance_overall = trained_models.get(best_model_name) #if best_model_name else None
-
-    
-    # print(f"\nBest model: {best_model_name} (F1 Score: {f1_scores[best_model_name]:.4f})")
-    # # Plot learning curve for the best model
-    # if best_model_name in ['Random Forest', 'Gradient Boosting', 'XGBoost', 'Logistic Regression', 'SVM']:
-    #     print(f"\nPlotting learning curve for {best_model_name}...")
-    #     plot_learning_curve(best_model, X_train, y_train, X_test, y_test) 
-    
-    if best_model_instance_overall and best_model_name:  
-        print(f"\nBest model: {best_model_name} (F1 Score: {f1_scores[best_model_name]:.4f})") 
-        if best_model_name in ['Random Forest', 'Gradient Boosting', 'XGBoost', 'Logistic Regression', 'SVM']: 
-            print(f"\nPlotting learning curve for {best_model_name}...") 
-            if report_dir: 
-                plot_learning_curve(best_model_instance_overall, X_train, y_train, X_test, y_test, cv=3, n_jobs=1) 
-           
-        save_best_model(best_model_instance_overall, best_model_name, {
-        'is_binary': is_binary,
-        'preserve_zones': preserve_zones,
-        'sort_features': sort_features,
-        'normalization': normalization,
-        'sampling_method': sampling_method,
-        'num_features': X.shape[1],
-        'accuracy': accuracies.get(best_model_name, 0.0), # Use .get for safety
-        'f1_score': f1_scores.get(best_model_name, 0.0),
-        # 'selection_criteria': 'max_f1_test_set',
-        'roc_auc': roc_auc_scores.get(best_model_name, 0.0), # Added
-        'avg_precision': avg_precision_scores.get(best_model_name, 0.0)
-        })
-    else:
-        print("\nNo models were successfully trained to determine the best model.")
-
-    # --- START: NEW LOGIC for Top 3 Gap+F1 Models ---
-    # print(f"\n{'='*30} Selecting Top 3 Models (Low Gap + High F1) {'='*30}")
-
-    # final_model_evals = {}
-    # # Evaluate all trained models using final CV on the full dataset (X, y)
-    # # This ensures consistent comparison based on CV performance and gap
-    # for name, model in trained_models.items():
-    #     print(f"Performing final CV evaluation for {name}...")
-    #     try:
-    #         # Ensure X, y are the versions AFTER initial preparation but BEFORE sampling/transformation specific to training loop if tune_hyperparams=False
-    #         # If tune_hyperparams=True, the CV within grid_search already did this, but re-evaluating ensures consistency
-    #         final_cv_results = evaluate_model_with_cv(
-    #             model, X, y, name, n_splits=5, random_state=42 # Using 5 splits for consistency
-    #         )
-
-    #         test_f1_mean = np.mean(final_cv_results['test_f1_weighted'])
-    #         train_f1_mean = np.mean(final_cv_results['train_f1_weighted'])
-    #         # Handle potential NaN if a metric calculation failed in CV
-    #         if np.isnan(train_f1_mean) or np.isnan(test_f1_mean):
-    #             print(f"  Warning: NaN scores encountered during CV for {name}. Skipping this model for gap analysis.")
-    #             continue # Skip if scores are NaN
-
-    #         f1_gap = abs(train_f1_mean - test_f1_mean) # Use absolute gap
-
-    #         final_model_evals[name] = {
-    #             'f1_score': test_f1_mean,
-    #             'gap': f1_gap,
-    #             'model': model,
-    #             # Store other metrics if needed
-    #             'accuracy': np.mean(final_cv_results['test_accuracy'])
-    #         }
-    #         print(f"  {name}: Final CV Test F1={test_f1_mean:.4f}, Gap={f1_gap:.4f}")
-    #     except Exception as cv_err:
-    #         print(f"  Error during final CV for {name}: {cv_err}. Skipping.")
-    #         traceback.print_exc()
-
-
-    # if not final_model_evals:
-    #     print("Could not perform final CV evaluations. Skipping Gap+F1 model saving.")
-    # else:
-    #     # Sort models: first by ascending gap, then by descending F1 score
-    #     sorted_models = sorted(
-    #         final_model_evals.items(),
-    #         key=lambda item: (item[1]['gap'], -item[1]['f1_score']) # Sort by gap (asc), then F1 (desc)
-    #     )
-
-    #     print("\nModels ranked by Gap (asc) then F1 (desc):")
-    #     for rank, (name, stats) in enumerate(sorted_models):
-    #         print(f"  Rank {rank+1}: {name} (Gap: {stats['gap']:.4f}, F1: {stats['f1_score']:.4f})")
-
-    #     # Select top 3
-    #     top_3_models = sorted_models[:3]
-
-    #     print(f"\nSaving Top {len(top_3_models)} Models based on Gap+F1...")
-    #     for rank, (name, stats) in enumerate(top_3_models):
-    #         top_model = stats['model']
-    #         top_f1 = stats['f1_score']
-    #         top_gap = stats['gap']
-    #         top_acc = stats.get('accuracy', 0.0) # Get accuracy if available
-
-    #         # Create a distinct name for saving
-    #         save_name = f"gap_f1_best_{rank+1}_{name}"
-
-    #         print(f"  Saving Rank {rank+1}: {save_name} (Gap: {top_gap:.4f}, F1: {top_f1:.4f})")
-
-    #         # Save the model with the new name and relevant stats
-    #         save_best_model(top_model, save_name, {
-    #             'original_model_name': name,
-    #             'rank_gap_f1': rank + 1,
-    #             'cv_f1_score': top_f1,
-    #             'cv_f1_gap': top_gap,
-    #             'cv_accuracy': top_acc,
-    #             'is_binary': is_binary,
-    #             'preserve_zones': preserve_zones,
-    #             'sort_features': sort_features,
-    #             'normalization': normalization,
-    #             'sampling_method': sampling_method, # Record sampling used during *tuning* or *global* application
-    #             'num_features': X.shape[1],
-    #             'selection_criteria': 'min_gap_then_max_f1_cv'
-    #         })
-    #     # ------------
-
-    # Perform SHAP analysis on the best model if requested
-    if analyze_shap and best_model is not None:
-        print(f"\nPerforming SHAP analysis on the best model ({best_model_name})...")
-        
-        
-        # Generate feature names if needed
-        # if feature_names is None:
-        #     metrics = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
-        #     feature_names = [f'{m}_Z{i+1}' for m in metrics for i in range(20)]
-        
-        metrics_shap = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp'] 
-        current_feature_names_shap = [f'{m}_Z{i+1}' for m in metrics_shap for i in range(20)]
-        if feature_names is None: feature_names = current_feature_names_shap
-        
-        # Run different SHAP visualizations
-        try:
-            # Basic visualizations for all model types
-            run_shap_analysis(
-                best_model_instance_overall, 
-                X_test, 
-                feature_names=feature_names, 
-                plot_type='summary', 
-                report_dir=report_dir, 
-                is_binary=is_binary,
-                y_test=y_test
-            )
-            
-            run_shap_analysis(
-                best_model_instance_overall, 
-                X_test, 
-                feature_names=feature_names, 
-                plot_type='bar', 
-                report_dir=report_dir, 
-                is_binary=is_binary,
-                y_test=y_test
-            )
-            
-            # Additional visualizations for tree-based models
-            # if isinstance(best_model,
-            if isinstance(best_model_instance_overall,
-                          (RandomForestClassifier, GradientBoostingClassifier, xgb.XGBClassifier)):
-                run_shap_analysis(
-                    best_model_instance_overall, 
-                    X_test, 
-                    feature_names=feature_names, 
-                    plot_type='beeswarm', 
-                    report_dir=report_dir, 
-                    is_binary=is_binary,
-                    y_test=y_test
-                )
-            
-            # Sample-specific visualizations for different samples
-            # First sample
-            sample_idx = 0
-            run_shap_analysis(best_model_instance_overall, X_test, feature_names, sample_idx=sample_idx, plot_type='waterfall', report_dir=report_dir, 
-                is_binary=is_binary,
-                y_test=y_test)
-            run_shap_analysis(best_model_instance_overall, X_test, feature_names, sample_idx=sample_idx, plot_type='force', report_dir=report_dir, 
-                is_binary=is_binary,
-                y_test=y_test)
-            
-            # Second sample if available
-            if len(X_test) > 1:
-                run_shap_analysis(
-                    best_model_instance_overall, 
-                    X_test, 
-                    feature_names=feature_names, 
-                    sample_idx=1, 
-                    plot_type='waterfall', 
-                    report_dir=report_dir, 
-                    is_binary=is_binary,
-                    y_test=y_test
-                    )
-            
-            # Random sample from minority class if this is a binary classification
-            if is_binary and len(X_test) > 5:
-                # Find indices of minority class samples
-                minority_idx = np.where(y_test == np.bincount(y_test).argmin())[0]
-                if len(minority_idx) > 0:
-                    # Select a random minority class sample
-                    sample_idx = np.random.choice(minority_idx)
-                    run_shap_analysis(
-                        best_model_instance_overall, 
-                        X_test, 
-                        feature_names=feature_names, 
-                        sample_idx=sample_idx, 
-                        plot_type='waterfall', 
-                        report_dir=report_dir, 
-                        is_binary=is_binary,
-                        y_test=y_test
-                            )
-            
-            # Try to analyze feature group importance
-            try:
-                # For tree-based models, can use the original feature group importance
-                if isinstance(best_model_instance_overall, (RandomForestClassifier, GradientBoostingClassifier, xgb.XGBClassifier)):
-                    analyze_feature_group_importance(
-                        best_model_instance_overall, 
-                        X_test, 
-                        num_features=len(feature_indices) if feature_indices is not None else 9,
-                        metrics=metrics_shap if 'metrics_shap' in locals() else None,
-                        class_index=0, report_dir=report_dir, y_test=y_test
-                    )
-                else:
-                    # For non-tree models, we won't use feature group importance
-                    print("Feature group importance analysis is skipped for non-tree models")
-            except Exception as e:
-                print(f"Warning when analyzing feature group importance: {e}")
-                traceback.print_exc()
-                
-        except Exception as e:
-            print(f"Error during SHAP analysis: {e}")
-            traceback.print_exc()
-        
-    #     # Add more analyses based on model type
-    #     if best_model_name in ['Stacking Classifier', 'SVM_pipeline']:
-    #         # For complex models, just do the basic analyses
-    #         run_shap_analysis(best_model, X_test, feature_names, sample_idx=0, plot_type='waterfall')
-    #     elif best_model_name in ['Random Forest', 'Gradient Boosting', 'xgb_model']:
-    #         # For tree-based models, do more detailed analyses
-    #         run_shap_analysis(best_model, X_test, feature_names, plot_type='beeswarm')
-    #         run_shap_analysis(best_model, X_test, feature_names, sample_idx=0, plot_type='waterfall')
-    #         run_shap_analysis(best_model, X_test, feature_names, sample_idx=0, plot_type='force')
-    
-    # # if analyze_shap and best_model_name in ['Random Forest', 'Gradient Boosting', 'XGBoost']:
-    # #     print(f"\nPerforming SHAP analysis on {best_model_name}...")
-    #         #     # Generate feature names
-    #     # metrics = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
-    #     # feature_names = [f'{m}_Z{i+1}' for m in metrics for i in range(20)]
-      
-    # #     # Summary plot
-        # run_shap_analysis(best_model, X_test, feature_names, plot_type='summary')
-        #         # Bar plot
-        # run_shap_analysis(best_model, X_test, feature_names, plot_type='bar')
-        #         # Beeswarm plot
-        # run_shap_analysis(best_model, X_test, feature_names, plot_type='beeswarm')
-        #         # Waterfall plot for first sample
-        # run_shap_analysis(best_model, X_test, feature_names, sample_idx=0, plot_type='waterfall')
-        #         # Force plot for first sample
-        # run_shap_analysis(best_model, X_test, feature_names, sample_idx=0, plot_type='force')
-    
-        # Analyze feature group importance
-            # analyze_feature_group_importance(best_model, X_test, num_features=len(feature_indices) if feature_indices else 9)
-        # Analyze feature group importance
-        
-    if best_model_instance_overall: # [cite: 897]
-        num_feat_groups = len(feature_indices) if feature_indices else 9 # [cite: 897]
-        metrics_group_analysis = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp'] # Default if not generated earlier
-        if is_binary:
-            analyze_feature_group_importance(best_model_instance_overall, X_test, num_features=num_feat_groups, metrics=metrics_group_analysis, class_index=0, report_dir=report_dir, y_test=y_test) # [cite: 897]
-        
-        # if is_binary:
-        #     analyze_feature_group_importance(best_model, X_test, num_features=len(feature_indices) if feature_indices else 9, class_index=0, report_dir=report_dir, y_test=y_test)
-            
-            
-        else:   
-            fig, axs = plt.subplots(2, 2, figsize=(12, 10))  # Create a 2x2 grid of subplots
-
-            # Plot for class index 0
-            plt.sca(axs[0, 0])
-            analyze_feature_group_importance(best_model_instance_overall, X_test, class_index=0,report_dir=report_dir, y_test=y_test)
-            plt.title('Class 0')
-
-            # Plot for class index 1
-            plt.sca(axs[0, 1])
-            analyze_feature_group_importance(best_model_instance_overall, X_test, class_index=1, report_dir=report_dir, y_test=y_test)
-            plt.title('Class 1')
-
-            # Plot for class index 2
-            plt.sca(axs[1, 0])
-            analyze_feature_group_importance(best_model_instance_overall, X_test, class_index=2, report_dir=report_dir, y_test=y_test)
-            plt.title('Class 2')
-
-            # Plot for class index 3
-            plt.sca(axs[1, 1])
-            analyze_feature_group_importance(best_model_instance_overall, X_test, class_index=3, report_dir=report_dir, y_test=y_test)
-            plt.title('Class 3')
-
-            plt.tight_layout()
-            plt.show()
-            plt.close()
-            
-    # # After your SHAP analysis is complete, add:
-    #     # Get number of classes
-    #     if hasattr(model, 'coef_') and len(model.coef_.shape) > 1:
-    #         num_classes = model.coef_.shape[0]
-    #     else:
-    #         num_classes = 1  # Binary classification or tree-based model
-
-    #     # Analyze top feature groups for each class
-    #     for class_idx in range(num_classes):
-    #         print(f"\n=== Analyzing Class {class_idx} ===")
-            
-    #         # Analyze median features
-    #         # med_zones = analyze_feature_group_zones(
-    #         #     best_model,
-    #         #     X_test,
-    #         #     feature_names,
-    #         #     group_name="med",
-    #         #     report_dir=report_dir,
-    #         #     class_index=class_idx
-    #         # )
-            
-    #         # Analyze skew features
-    #         feat_zones = analyze_feature_group_zones(
-    #             model,
-    #             X_test,
-    #             feature_names,
-    #             group_name="skew",
-    #             report_dir=report_dir,
-    #             class_index=class_idx
-    #         )
-    
-    # Add cross-validation evaluation for the best model
-    # cv_results = evaluate_model_with_cv(
-    #     best_model, X, y, best_model_name, n_splits=10, random_state=42
-    # )
-    
-    final_cv_results = None
-    if best_model_instance_overall: 
-        final_cv_results = evaluate_model_with_cv( 
-            best_model_instance_overall, X, y, best_model_name, n_splits=5, random_state=42)
-
-    best_model_f1_score = f1_scores.get(best_model_name, 0.0) 
-    best_model_roc_auc = roc_auc_scores.get(best_model_name, 0.0)
-    best_model_avg_precision = avg_precision_scores.get(best_model_name, 0.0)
-
-    # Ensure all expected keys are in the return dict for integrated_pipeline
-    return_results_dict = {
-        'trained_models': trained_models,
-        'accuracies': accuracies,
-        'f1_scores': f1_scores, # Dict of all F1s
-        'roc_auc_scores': roc_auc_scores, # Dict of all ROC AUCs
-        'avg_precision_scores': avg_precision_scores, # Dict of all APs
-        'X_train': X_train,
-        'y_train': y_train,
-        'X_test': X_test,
-        'y_test': y_test,
-        'le': le,
-        'feature_names': feature_names,
-        'best_model_name': best_model_name if best_model_name else "N/A",
-        'f1_score': best_model_f1_score, # Single F1 for best model
-        'roc_auc': best_model_roc_auc, # Single ROC AUC for best model
-        'avg_precision': best_model_avg_precision, # Single AP for best model
-        'cv_results': final_cv_results
-    }
-    print(f"DEBUG run_classification_pipeline: Returning best_model_name: {return_results_dict['best_model_name']}") # [cite: 908]
-    print(f"DEBUG run_classification_pipeline: Returning f1_score for best model: {return_results_dict['f1_score']}") # [cite: 908]
-
-    
-        
-    # return best_model, {
-    #     'trained_models': trained_models,
-    #     # 'final_model_evaluations': final_model_evals,
-    #     'accuracies': accuracies,
-    #     'f1_scores': f1_scores,
-    #     'X_train': X_train,
-    #     'X_test': X_test,
-    #     'y_train': y_train,
-    #     'y_test': y_test,
-    #     'le': le,
-    #     'feature_names': feature_names,
-    #     'best_model_name': best_model_name, # added
-    #     'f1_score': best_model_f1_score,    # added
-    #     'cv_results': cv_results if 'cv_results' in locals() else None
-    # }
-    
-    # best_model_f1_score = f1_scores.get(best_model_name, 0.0) #  F1-> best model
-    # print(f"DEBUG run_classification_pipeline: Returning best_model_name: {best_model_name}")
-    # print(f"DEBUG run_classification_pipeline: Returning f1_score for best model: {best_model_f1_score}")
-    # print(f"DEBUG run_classification_pipeline: Returning X_train shape: {X_train.shape}")
-    # print(f"DEBUG run_classification_pipeline: Returning y_train shape: {y_train.shape}, unique: {np.unique(y_train)}")
-
-
-    # return best_model, {
-    #     'trained_models': trained_models,
-    #     'accuracies': accuracies,
-    #     'f1_scores': f1_scores, # This is the DICTIONARY of all F1 scores
-    #     'X_train': X_train,  # Training features (post-sampling if applicable)
-    #     'y_train': y_train,  # Training labels (post-sampling if applicable)
-    #     'X_test': X_test,
-    #     'y_test': y_test,
-    #     'le': le,
-    #     'feature_names': feature_names,
-    #     'best_model_name': best_model_name, 
-    #     'f1_score': best_model_f1_score,        # <<< THIS IS THE SINGLE F1 SCORE FOR THE BEST MODEL
-    #     'cv_results': cv_results if 'cv_results' in locals() else None
-    # }
-    return best_model_instance_overall, return_results_dict
-
 
 # Run a batch of experiments
 def run_experiment_batch(data_path, experiment_configs=None):
@@ -4944,7 +3457,7 @@ def run_experiment_batch(data_path, experiment_configs=None):
     """
     if experiment_configs is None:
         experiment_configs = [        
-            # Binary classification experiments
+            # Binary classification
             {'is_binary': True, 'normalization': 'none', 'sampling_method': 'smote'},
             {'is_binary': True, 'normalization': 'standard', 'sampling_method': 'smote'},
             {'is_binary': True, 'normalization': 'minmax', 'sampling_method': 'smote'},
@@ -5029,19 +3542,16 @@ def run_experiment_batch(data_path, experiment_configs=None):
         print(f"Best overall configuration: {best_overall_config}")
         print(f"Best overall F1 Score: {best_overall_f1:.4f}")
         print(f"{'='*80}")
-        
-        # Run SHAP analysis on the best overall model
         print("\nRunning SHAP analysis on the best overall model...")
         data = pd.read_csv(data_path)
         
-        # Extract configuration from key
         config_parts = best_overall_config.split('_')
         is_binary = config_parts[0] == 'binary'
         normalization = config_parts[1]
         sampling_method = config_parts[2]
         sort_features = len(config_parts) > 3 and config_parts[3] == 'sorted'
         
-        # Prepare data for SHAP analysis
+        # Prep for SHAP analysis
         X, y, le, scaler, feature_names, actual_group_metrics = prepare_data(
                                     data, 
                                     normalization=normalization, 
@@ -5117,8 +3627,7 @@ def generate_parameter_combinations():
 
 # Example of usage in main script:
 if __name__ == "__main__":
-    # data_path = '/home/users/u5499379/Projects/ardes/mpod.csv'
-    data_path = '/home/users/u5499379/Projects/ardes/ardes_ML_v1/data/train_mpod.csv'
+    data_path = 'data/train_mpod.csv'
     
     # Option 1: Run a single experiment with specific parameters
     params = {
@@ -5136,29 +3645,6 @@ if __name__ == "__main__":
     
     # Run single experiment
     best_model, results = run_classification_pipeline(**params)
-    
-    # Option 2: Run a subset of combinations
-    # Define specific experiment configurations to run
-    # experiment_configs = [
-    #     {'is_binary': True, 'normalization': 'standard', 'sampling_method': 'smote', 'sort_features': 'ascend_all'},
-    #     {'is_binary': True, 'normalization': 'standard', 'sampling_method': 'smote', 'sort_features': 'descend_all'},
-    #     {'is_binary': True, 'normalization': 'minmax', 'sampling_method': 'smote', 'sort_features': 'custom'}
-    # ]
-    
-    # # Run batch of specific experiments
-    # best_overall_model = run_experiment_batch(data_path, experiment_configs)
-    
-    # Option 3: Run all combinations 
-    # # Generate all parameter combinations
-    # all_combinations = generate_parameter_combinations()
-    
-    # # If needed, limit the number of combinations to run
-    # max_combinations = 10  # Adjust as needed
-    # selected_combinations = all_combinations[:max_combinations]
-    
-    # # Run selected batch of experiments
-    # best_overall_model = run_experiment_batch(data_path, selected_combinations)
-    
-    # Add this line at the very end:
+
     plt.close('all')
     print("Closed all matplotlib figures.")

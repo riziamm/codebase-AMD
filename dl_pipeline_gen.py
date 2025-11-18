@@ -1,42 +1,3 @@
-"""
-```
-This script is part of a deep learning pipeline for classification tasks.
-# Example usage from command line:
-
-    CHoose GPU:
-    CUDA_VISIBLE_DEVICES=1 # Select GPU 1, GPU 0 by default
-
-    $ python dl_pipeline_gen.py --data_path "data/mpod.csv" --use_gpu --experiment_name "Binaryclass_run_all.debug"
-    $ python dl_pipeline.py --data_path "data/mpod.csv" --tune_hyperparameters --use_gpu --experiment_name "Binaryclass_run_all.011" 2>&1 | tee -a "reports/log_binary_007_$(date +'%Y%m%d_%H%M%S').log"
-    $ python dl_pipeline.py --data_path "data/mpod.csv" --use_gpu
-    
-    #** Generic toy data run
-    python dl_pipeline_gen.py --dataset breast_cancer --data_path "data/breast_cancer_data.csv" --use_gpu --experiment_name "BC_all_001-test" 2>&1 | tee -a "reports/BC_all_001-test_$(date +'%Y%m%d_%H%M%S').log" 
-    
-    New addision>> --resampling_method: SMOTEENN or SMOTETomek
-    #** Scania_aps data run
-    CUDA_VISIBLE_DEVICES=1 \
-    python dl_pipeline_gen.py \
-    --dataset scania_aps \
-    --data_path "data/aps_training.csv" \
-    --test_data_path "data/aps_test.csv" \
-    --experiment_name "Scania_run_CNN_001_test" \
-    --use_gpu \
-    --batch_size 128 \
-    --epochs_training 5 \
-    --models_to_run CNN \
-    --resampling_method SMOTETomek \
-    2>&1 | tee -a "reports/Scania_run_CNN_001_test_$(date +'%Y%m%d_%H%M%S').log" 
-    
-    #** default run all models
-    $ python dl_pipeline.py --data_path "data/mpod.csv" --experiment_name "all_run" --models_to_run CNN Transformer CNNTransformer_sequential CNNTransformer_parallel --tune_hyperparameters --use_gpu --experiment_name "Binaryclass_run_all.01Jul25.006" 2>&1 | tee -a "reports/log_binary_all..01Jul25.006_$(date +'%Y%m%d_%H%M%S').log"
-    
-    # Debug run one model
-    python dl_pipeline_gen_v2.py --data_path "data/mpod.csv"  --models_to_run CNNTransformer_parallel --use_gpu --batch_size 32 --epochs_training 5 --cv_splits_training 3 --shap_num_samples 50 --select_features 0 5 8 --experiment_name "Binaryclass_debug_run_cnntx.002" 2>&1 | tee -a "reports/log_Binaryclass_debug_run_cnntx.002_$(date +'%Y%m%d_%H%M%S').log"   
-
-```
-
-"""
 import numpy as np
 import pandas as pd
 import torch
@@ -77,7 +38,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("dl_classf.log", mode='w'), # Overwrite log file each run
+        logging.FileHandler("dl_classf.log", mode='w'), 
         logging.StreamHandler()
     ]
 )
@@ -407,243 +368,6 @@ class TransformerModel(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x)
         return x
-
-class CNNTransformerModel_1(nn.Module):
-    def __init__(self, feature_dim, num_classes=1, cnn_units=64, transformer_dim=64,
-                 transformer_heads=4, transformer_layers=2, dropout_rate=0.2):
-        super(CNNTransformerModel_p, self).__init__()
-        self.feature_dim = feature_dim # Sequence length for CNN if input is (N,1,L)
-
-        # CNN pathway
-        self.conv1 = nn.Conv1d(1, cnn_units, kernel_size=3, padding=1)
-        self.batch_norm1 = nn.BatchNorm1d(cnn_units)
-        self.conv2 = nn.Conv1d(cnn_units, cnn_units * 2, kernel_size=3, padding=1)
-        self.batch_norm2 = nn.BatchNorm1d(cnn_units * 2)
-
-        self.use_pooling = feature_dim > 1
-        cnn_current_len = feature_dim
-        if self.use_pooling:
-            self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
-            cnn_current_len = cnn_current_len // 2
-
-        cnn_output_dim_flat = (cnn_units * 2) * cnn_current_len
-
-        # Transformer pathway
-        # For transformer, feature_dim is the embedding dimension of each element in sequence
-        # If input is (Batch, Features), we treat it as (Batch, 1, Features) for transformer.
-        # Or, if CNN processes (Batch, 1, SeqLen), its output could feed transformer.
-        # Let's assume original feature_dim is input to transformer projection as well for parallel paths.
-        self.transformer_projection = nn.Linear(feature_dim, transformer_dim) # Input is original features
-        self.pos_encoder = PositionalEncoding(transformer_dim, dropout_rate)
-        encoder_layers = nn.TransformerEncoderLayer(
-            d_model=transformer_dim, nhead=transformer_heads,
-            dim_feedforward=transformer_dim * 4, dropout=dropout_rate, batch_first=True
-        )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers=transformer_layers)
-
-        # Combined pathway
-        self.fc1 = nn.Linear(cnn_output_dim_flat + transformer_dim, 64)
-        self.fc2 = nn.Linear(64, num_classes)
-        self.dropout = nn.Dropout(dropout_rate)
-
-
-    def forward(self, x):
-        # Assume x input is (batch_size, feature_dim) or (batch_size, 1, feature_dim) for CNN
-        # And (batch_size, feature_dim) for transformer (will be unsqueezed)
-
-        if len(x.shape) == 2: # (batch_size, features)
-            x_cnn_input = x.unsqueeze(1) # (batch_size, 1, features) for Conv1D
-            x_trans_input = x.unsqueeze(1) # (batch_size, 1, features) for Transformer projection
-        elif len(x.shape) == 3 and x.shape[1] == 1: # (batch_size, 1, features)
-            x_cnn_input = x
-            x_trans_input = x.squeeze(1) # (batch_size, features) for Linear projection
-                                         # then unsqueeze for sequence.
-            x_trans_input = x_trans_input.unsqueeze(1) # (batch_size, 1, features)
-        else: # (batch_size, seq_len > 1, features)
-            # This case needs clarification on how CNN and Transformer should process it.
-            # Assuming feature_dim refers to the last dimension for transformer,
-            # and the second to last for CNN (sequence length).
-            # For simplicity, let's stick to the tabular-like input (N, F) or (N, 1, F)
-            logger.error("CNNTransformerModel input shape not fully handled for (N, S>1, F). Assuming (N,F) or (N,1,F).")
-            if len(x.shape) == 2:
-                x_cnn_input = x.unsqueeze(1)
-                x_trans_input = x.unsqueeze(1)
-            else: # Fallback
-                x_cnn_input = x
-                x_trans_input = x.squeeze(1).unsqueeze(1) if x.shape[1] == 1 else x
-
-
-        batch_size = x_cnn_input.size(0)
-
-        # CNN pathway
-        x_cnn = self.conv1(x_cnn_input)
-        x_cnn = F.relu(x_cnn)
-        x_cnn = self.batch_norm1(x_cnn)
-        if self.use_pooling:
-            x_cnn = self.pool(x_cnn)
-        x_cnn = self.dropout(x_cnn)
-        x_cnn = self.conv2(x_cnn)
-        x_cnn = F.relu(x_cnn)
-        x_cnn = self.batch_norm2(x_cnn)
-        x_cnn = self.dropout(x_cnn)
-        x_cnn = x_cnn.view(batch_size, -1) # Flatten CNN output
-
-        # Transformer pathway
-        # x_trans_input is (batch_size, 1, feature_dim)
-        x_trans = self.transformer_projection(x_trans_input) # (batch, 1, transformer_dim)
-        x_trans = self.pos_encoder(x_trans)      # (batch, 1, transformer_dim)
-        x_trans = self.transformer_encoder(x_trans) # (batch, 1, transformer_dim)
-        x_trans = torch.mean(x_trans, dim=1)     # (batch, transformer_dim) Global average pooling
-
-        # Concatenate features
-        x_combined = torch.cat((x_cnn, x_trans), dim=1)
-
-        # Final layers
-        x_combined = self.fc1(x_combined)
-        x_combined = F.relu(x_combined)
-        x_combined = self.dropout(x_combined)
-        x_combined = self.fc2(x_combined)
-        return x_combined
-
-
-class CNNTransformerModel_2(nn.Module):
-    def __init__(self, feature_dim, num_classes=1, cnn_units=64, transformer_dim=64,
-                 transformer_heads=4, transformer_layers=2, dropout_rate=0.2,
-                 # Add a flag to choose the architecture easily
-                 architecture_mode='parallel'): # Options: 'parallel', 'sequential'
-        
-        super(CNNTransformerModel, self).__init__()
-        self.feature_dim = feature_dim
-        self.architecture_mode = architecture_mode
-        self.dropout_layer = nn.Dropout(dropout_rate) # Shared dropout layer
-
-        # --- CNN Pathway (Common to both modes) ---
-        self.conv1 = nn.Conv1d(1, cnn_units, kernel_size=3, padding=1)
-        self.batch_norm1 = nn.BatchNorm1d(cnn_units)
-        self.conv2 = nn.Conv1d(cnn_units, cnn_units * 2, kernel_size=3, padding=1)
-        self.batch_norm2 = nn.BatchNorm1d(cnn_units * 2)
-
-        self.use_pooling = feature_dim > 1
-        self.cnn_final_seq_len = feature_dim
-        if self.use_pooling:
-            self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
-            self.cnn_final_seq_len = self.cnn_final_seq_len // 2
-
-        # CNN output channels = cnn_units * 2
-        self.cnn_output_channels = cnn_units * 2
-        # Flattened CNN output dimension
-        cnn_output_dim_flat = self.cnn_output_channels * self.cnn_final_seq_len
-
-        # --- Transformer Pathway Definition ---
-        self.pos_encoder = PositionalEncoding(transformer_dim, dropout_rate)
-        encoder_layers = nn.TransformerEncoderLayer(
-            d_model=transformer_dim, nhead=transformer_heads,
-            dim_feedforward=transformer_dim * 4, dropout=dropout_rate, batch_first=True
-        )
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_layers=transformer_layers)
-
-        # --- Mode-Specific Layers ---
-        if self.architecture_mode == 'parallel':
-            # Parallel mode: Transformer takes original features projected
-            self.transformer_projection = nn.Linear(feature_dim, transformer_dim)
-            # FC layer input combines flattened CNN and Transformer output
-            combined_dim = cnn_output_dim_flat + transformer_dim
-            
-        elif self.architecture_mode == 'sequential':
-            # Sequential mode: Transformer takes CNN output features
-            # Input feature dimension for Transformer projection is # CNN output channels
-            self.cnn_out_to_transformer_projection = nn.Linear(self.cnn_output_channels, transformer_dim)
-            # FC layer input is just the Transformer output dimension
-            combined_dim = transformer_dim
-            
-        else:
-            raise ValueError(f"Unknown architecture_mode: {self.architecture_mode}")
-
-        # --- Final Classification Head ---
-        self.fc1 = nn.Linear(combined_dim, 64)
-        self.fc2 = nn.Linear(64, num_classes)
-
-
-    def forward(self, x):
-        # --- Input Shape Handling ---
-        # Assume input x is (batch_size, feature_dim) or (batch_size, 1, feature_dim)
-        if len(x.shape) == 2: # (batch_size, features) -> Need (batch_size, 1, features) for Conv1D
-            x_cnn_input = x.unsqueeze(1)
-        elif len(x.shape) == 3 and x.shape[1] == 1: # (batch_size, 1, features)
-            x_cnn_input = x
-        else:
-            # Handle other cases or raise error if shape is unexpected
-            # Using your existing fallback for now:
-            logger.error("CNNTransformerModel input shape unexpected. Assuming (N, F) or (N, 1, F).")
-            if len(x.shape) == 2:
-                x_cnn_input = x.unsqueeze(1)
-            else: # Fallback for (N, S>1, F) or other shapes
-                x_cnn_input = x if x.shape[1] == 1 else x.unsqueeze(1) # Ensure C=1 if possible
-
-
-        batch_size = x_cnn_input.size(0)
-
-        # --- CNN Pathway Execution (Common) ---
-        # Output shape: (batch_size, self.cnn_output_channels, self.cnn_final_seq_len)
-        x_cnn_out = self.conv1(x_cnn_input)
-        x_cnn_out = F.relu(x_cnn_out)
-        x_cnn_out = self.batch_norm1(x_cnn_out)
-        if self.use_pooling:
-            x_cnn_out = self.pool(x_cnn_out)
-        x_cnn_out = self.dropout_layer(x_cnn_out) # Apply dropout
-
-        x_cnn_out = self.conv2(x_cnn_out)
-        x_cnn_out = F.relu(x_cnn_out)
-        x_cnn_out = self.batch_norm2(x_cnn_out)
-        x_cnn_out = self.dropout_layer(x_cnn_out) # Apply dropout
-
-
-        # --- Parallel Architecture ---
-        if self.architecture_mode == 'parallel':
-            # 1. Prepare Transformer Input (from original x)
-            if len(x.shape) == 3 and x.shape[1] == 1: # If input was (N, 1, F)
-                x_trans_input_orig = x.squeeze(1) # (N, F) for projection
-            else: # Assume input was (N, F)
-                x_trans_input_orig = x
-            x_trans_input_orig = x_trans_input_orig.unsqueeze(1) # (N, 1, F) - Seq len 1
-
-            # 2. Transformer Pathway Execution
-            x_trans = self.transformer_projection(x_trans_input_orig) # (batch, 1, transformer_dim)
-            x_trans = self.pos_encoder(x_trans)
-            x_trans = self.transformer_encoder(x_trans) # (batch, 1, transformer_dim)
-            x_trans_pooled = torch.mean(x_trans, dim=1) # (batch, transformer_dim) Global average pooling
-
-            # 3. Flatten CNN Output
-            x_cnn_flat = x_cnn_out.view(batch_size, -1)
-
-            # 4. Concatenate features
-            x_combined = torch.cat((x_cnn_flat, x_trans_pooled), dim=1)
-
-
-        # --- Sequential Architecture (CNN -> Transformer) ---
-        elif self.architecture_mode == 'sequential':
-            # 1. Prepare Transformer Input (from CNN output)
-            # Reshape CNN output: (batch, channels, seq_len) -> (batch, seq_len, channels)
-            x_trans_input_seq = x_cnn_out.permute(0, 2, 1) # (batch, cnn_final_seq_len, cnn_output_channels)
-
-            # 2. Project features from CNN channels to transformer_dim
-            x_trans_input_seq = self.cnn_out_to_transformer_projection(x_trans_input_seq) # (batch, cnn_final_seq_len, transformer_dim)
-
-            # 3. Transformer Pathway Execution
-            x_trans = self.pos_encoder(x_trans_input_seq)
-            x_trans = self.transformer_encoder(x_trans) # (batch, cnn_final_seq_len, transformer_dim)
-            
-            # 4. Pool Transformer Output (Global Average Pooling over the sequence length)
-            x_combined = torch.mean(x_trans, dim=1) # (batch, transformer_dim)
-
-
-        # --- Final Classification Head (Common) ---
-        x_combined = self.fc1(x_combined)
-        x_combined = F.relu(x_combined)
-        x_combined = self.dropout_layer(x_combined) # Apply dropout
-        x_combined = self.fc2(x_combined)
-
-        return x_combined
 
 class CNNTransformerModel(nn.Module):
     def __init__(self, feature_dim, num_classes=1, 
@@ -1604,7 +1328,7 @@ def run_shap_analysis_dl(
     label_encoder_for_class_names=None,
     class_indices_to_explain= None, # For multiclass, which classes to explain
     explainer_type='kernel' # 'deep', or 'kernel'.
-):
+    ):
     """
     Runs SHAP analysis on a trained PyTorch model. This is a final, robust version that
     unifies Gradient, Deep, and Kernel explainers to work with a single plotting pipeline.
@@ -2148,7 +1872,6 @@ def run_shap_analysis_dl(
     logger.info(f"SHAP analysis for {model_name_prefix} (potentially) completed.")
     return explanations_to_plot, explainer
 
-# FOr OFA dataset, paper work using kernelExplainer
 def run_shap_analysis_dl_OFA(model,
                          X_data_np, # Data to explain
                          X_train_data_np_for_background, # Background data for SHAP
@@ -2186,20 +1909,15 @@ def run_shap_analysis_dl_OFA(model,
     logger.info(f"--- Starting SHAP Analysis for {model_name_prefix} ---")
     logger.info(f"Explaining {X_data_np.shape[0]} samples. Using background data of shape {X_train_data_np_for_background.shape}")
 
-    # --- SHAP STABILITY: Background Data Handling ---
-    # For very small datasets (like 83 training samples from previous logs), using all training data is often best.
-    # The variable `always_use_full_background` can be set based on dataset size or as a fixed strategy.
-    # Let's assume if the background dataset passed is small, we use it all.
-    use_full_background_heuristic = X_train_data_np_for_background.shape[0] < 150 # Example heuristic
+    use_full_background_heuristic = X_train_data_np_for_background.shape[0] < 150 
 
     if is_transformer_model_heuristic_for_shap or "cnntransformer" in model_name_prefix.lower() or use_full_background_heuristic:
         logger.info(f"SHAP Analysis for {model_name_prefix}: Using all {X_train_data_np_for_background.shape[0]} training samples directly for SHAP background (no k-means).")
         X_background_summary_np = X_train_data_np_for_background
     else:
-        # Original k-means logic for larger datasets if preferred
         background_samples_max = shap_num_samples_cli
-        if is_transformer_model_heuristic_for_shap: # This condition is now part of the above block
-            pass # background_samples_max = min(shap_num_samples_cli, 70)
+        if is_transformer_model_heuristic_for_shap: 
+            pass 
         else:
             background_samples_max = min(shap_num_samples_cli, 100)
         
@@ -2251,9 +1969,7 @@ def run_shap_analysis_dl_OFA(model,
     
     logger.info(f"Calculating SHAP values for {X_data_np.shape[0]} samples using nsamples={current_nsamples_for_explainer} for {model_name_prefix}...")
     
-    # --- SHAP STABILITY: L1 Regularization ---
     l1_reg_val = 'aic' 
-    # More aggressive L1 for models prone to instability (transformers, hybrids) or when background is very small vs features
     if is_transformer_model_heuristic_for_shap or "cnntransformer" in model_name_prefix.lower() or \
        (X_background_summary_np.shape[0] < X_data_np.shape[1] * 1.5 and X_data_np.shape[1] > 100) : # Heuristic for small background vs many features
         l1_reg_val = 'num_features(5)' 
@@ -2290,10 +2006,7 @@ def run_shap_analysis_dl_OFA(model,
             return None, None
             
     shap_output_dir = subdirs['figures'] / "SHAP" / model_name_prefix
-    if "Error_Analysis" in str(model_name_prefix): # Handle error analysis sub-pathing correctly
-        # Assuming model_name_prefix for error analysis is like "ModelName_final_best_holdout_misclassified"
-        # And subdirs['figures'] for post_analysis is "reports/.../post_analysis/figures"
-        # We want SHAP plots in "reports/.../post_analysis/figures/SHAP_Error_Analysis/ModelName_final_best_holdout_misclassified"
+    if "Error_Analysis" in str(model_name_prefix): 
         base_shap_error_dir = subdirs['figures'].parent / "SHAP_Error_Analysis" # Go up one from 'figures' then to 'SHAP_Error_Analysis'
         shap_output_dir = base_shap_error_dir / model_name_prefix
         
@@ -2368,8 +2081,6 @@ def run_shap_analysis_dl_OFA(model,
                 finally: plt.close()
     
     # --- PLOTTING LOGIC ---
-
-    # Create a list to hold all explanation objects we need to plot
     explanations_to_plot = []
     class_names = []
 
@@ -2433,14 +2144,7 @@ def run_shap_analysis_dl_OFA(model,
             if inst_idx >= expl.values.shape[0]: continue
             
             instance_explanation = expl[inst_idx]
-            
-            # 1. Standard Waterfall Plot
-            # plt.figure(); 
-            # shap.plots.waterfall(instance_explanation, max_display=15, show=False)
-            # plt.title(f"SHAP Waterfall (Inst {inst_idx}, {class_names[i]}) - {model_name_prefix}")
-            # plt.tight_layout()
-            # plt.savefig(shap_output_dir / f"{model_name_prefix}_waterfall_inst_{inst_idx}_{class_name_for_file}.png")
-            # plt.close()
+        
             try:
                 # --- 1. Get Logits for BOTH Classes ---
                 # `explanations_to_plot` is ordered [Class Positive, Class Negative]
@@ -2530,8 +2234,7 @@ def run_shap_analysis_dl_OFA(model,
                         filename_suffix=f"instance_{inst_idx}_{class_name_for_file}", is_global=False
                     )
         else:
-            logger.error("--- Conditions for circular plots were NOT MET. Skipping. Please check the logs above. ---")
-        # --- END         
+            logger.error("--- Conditions for circular plots were NOT MET. Skipping. Please check the logs above. ---")       
     
     
     # --- Grouped SHAP Heatmap (Clustermap) ---
@@ -2562,21 +2265,12 @@ def run_shap_analysis_dl_OFA(model,
                         logger.info(f"Generating SHAP clustermap for {model_name_prefix} with shape {heatmap_data.shape}")
                         hm_cluster = sns.clustermap(heatmap_data, 
                                                     annot=True, fmt=".3f", cmap="viridis",
-                                                    # yticklabels=group_metrics_list, # Already set by DataFrame index
-                                                    # xticklabels=[f"Z{z+1}" for z in range(num_zones_per_metric)], # Already set by DataFrame columns
                                                     figsize=(max(8, num_zones_per_metric * 0.6), max(6, len(group_metrics_list) * 0.5)),
-                                                    linewidths=.5 # Added for aesthetics
+                                                    linewidths=.5 
                                                    )
-                        # Seaborn's clustermap sets yticklabels and xticklabels from the DataFrame index/columns by default if they are named.to override them, ensure the DataFrame doesn't have named index/columns or set them explicitly in clustermap.
-                        # The DataFrame already has these as index and columns, so explicit passing might be redundant but harmless.
-                        
-                        # Adjust labels if needed (clustermap has its own axes)
                         plt.setp(hm_cluster.ax_heatmap.get_xticklabels(), rotation=45, ha="right")
                         plt.setp(hm_cluster.ax_heatmap.get_yticklabels(), rotation=0)
-                        # hm_cluster.ax_heatmap.set_xlabel("Zone") # Clustermap handles this differently
-                        # hm_cluster.ax_heatmap.set_ylabel("Metric Group")
                         
-                        # Title for clustermap
                         title_str = f"Mean Abs SHAP ({'Positive Class' if is_binary_mode_flag else 'Class 0'}) - {model_name_prefix}"
                         hm_cluster.fig.suptitle(title_str, y=1.03, fontsize=10)
 
@@ -2623,24 +2317,14 @@ def run_shap_analysis_dl_OFA(model,
                                 "'group_metrics_list' and 'num_zones_per_metric' are correct.")
                 else:
                     # 1. Calculate mean absolute SHAP values for all fine-grained features (metric_zone)
-                    #    shape: (total_features_including_zones,)
                     mean_abs_shaps_flat = np.abs(shap_val_for_grouped_plot).mean(axis=0)
 
                     # 2. Reshape to (num_metrics, num_zones_per_metric)
-                    #    Rows correspond to group_metrics_list, columns to zones.
                     mean_abs_shaps_reshaped = mean_abs_shaps_flat.reshape(num_metrics, num_zones_per_metric)
 
-                    # 3. Aggregate SHAP values for each original metric group.
-                    #    Option A: Sum of mean absolute SHAP values of zones (total impact)
+                    # 3. Aggregate SHAP values 
                     metric_aggregated_importance = np.sum(mean_abs_shaps_reshaped, axis=1)
                     y_axis_label = "Sum of Mean(|SHAP value|) across Zones"
-                    
-                    #    Option B: Mean of mean absolute SHAP values of zones (average impact per zone)
-                    #    If your image's "Mean |Importance|" implies this, uncomment the next two lines
-                    #    and comment out the two lines above for Option A.
-                    # metric_aggregated_importance = np.mean(mean_abs_shaps_reshaped, axis=1)
-                    # y_axis_label = "Mean of Mean(|SHAP value|) across Zones"
-
 
                     # Sort metrics by their aggregated importance for plotting
                     sorted_indices = np.argsort(metric_aggregated_importance)[::-1] # Descending
@@ -2648,8 +2332,7 @@ def run_shap_analysis_dl_OFA(model,
                     sorted_metric_importance = metric_aggregated_importance[sorted_indices]
 
                     # 4. Create the vertical bar plot
-                    #    Figure size: width, height. Adjust as needed.
-                    fig_width = max(8, num_metrics * 0.8) # Adjust width based on number of metrics
+                    fig_width = max(8, num_metrics * 0.8) 
                     fig_grouped_bar, ax_grouped_bar = plt.subplots(figsize=(fig_width, 6))
 
                     bars = ax_grouped_bar.bar(
@@ -2657,7 +2340,6 @@ def run_shap_analysis_dl_OFA(model,
                         sorted_metric_importance
                     )
                     
-                    # Add SHAP values on top of each bar ---
                     for bar in bars:
                         yval = bar.get_height()
                         ax_grouped_bar.text(
@@ -2669,9 +2351,8 @@ def run_shap_analysis_dl_OFA(model,
                             fontsize=10
                         )
 
-                    ax_grouped_bar.set_ylabel(y_axis_label) # Set based on aggregation choice
-                    # ax_grouped_bar.set_xlabel("Original Metric Group") # X-axis now has metric names
-                    plt.xticks(rotation=45, ha="right") # Rotate metric names if they overlap
+                    ax_grouped_bar.set_ylabel(y_axis_label) 
+                    plt.xticks(rotation=45, ha="right") 
 
                     plot_title_detail = 'Positive Class' if is_binary_mode_flag else 'Class 0' # Or use class name if available
                     ax_grouped_bar.set_title(f"Feature Group Importance - {model_name_prefix} ({plot_title_detail})", fontsize=12)
@@ -2765,38 +2446,25 @@ def run_shap_analysis_dl_OFA(model,
                 })
             zone_definitions = new_zone_definitions
 
-###########  generate composite image with all 9 feat HM circular plots ---
+            ###  Generate composite image with all 9 feat HM circular plots ---
 
             num_features = len(heatmap_data.index)
             if num_features == 0:
                 logger.info("No features to plot in composite image.")
-            #else: # Proceed to plot if there are features
-
-            # Determine grid size (defaulting to 3x3 for up to 9 features)
             ncols = 3
             nrows = int(np.ceil(num_features / ncols))
             if num_features == 0: # handle case of no features
                 logger.info("Skipping composite plot as there are no features.")
             else:
-                # Adjust figsize: Aim for each subplot to be reasonably clear.
-                # If each subplot needs roughly 4-5 inches, a 3x3 grid could be 12-15 inches wide.
-                # Height needs to accommodate suptitle.
                 master_fig_width = 4.5 * ncols 
                 master_fig_height = 4.5 * nrows + 0.7 # Add a bit more for suptitle
 
                 master_fig, master_axes = plt.subplots(nrows, ncols, figsize=(master_fig_width, master_fig_height))
-                
-                # If nrows=1 and ncols=1, master_axes is not an array but a single Axes.
-                # If nrows=1 or ncols=1 (but not both 1), master_axes is a 1D array.
-                # Otherwise, it's a 2D array. Flatten for consistent iteration.
                 if num_features == 1:
                     master_axes_flat = [master_axes] # Make it iterable
                 else:
                     master_axes_flat = master_axes.flatten()
 
-                # Global normalization for a shared colorbar (already done for individual plots, reuse here)
-                # Assuming g_vmin, g_vmax, norm, cmap, sm are already defined globally from single plot logic
-                # If not, recalculate them here:
                 g_vmin = heatmap_data.min().min()
                 g_vmax = heatmap_data.max().max()
                 if g_vmin == g_vmax:
@@ -2804,7 +2472,7 @@ def run_shap_analysis_dl_OFA(model,
                     else: 
                         abs_g_vmin = abs(g_vmin) # Calculate absolute value once
                         g_vmin = g_vmin - abs_g_vmin * 0.1 if g_vmin != 0 else -0.001
-                        g_vmax = g_vmax + abs_g_vmin * 0.1 if g_vmax != 0 else 0.001 # Use abs_g_vmin here too for consistency
+                        g_vmax = g_vmax + abs_g_vmin * 0.1 if g_vmax != 0 else 0.001 
                     if g_vmin == g_vmax: g_vmin -=0.001; g_vmax +=0.001 
                             
                 current_norm = plt.Normalize(vmin=g_vmin, vmax=g_vmax) # Use current_norm for clarity
@@ -2860,17 +2528,11 @@ def run_shap_analysis_dl_OFA(model,
                     ax.set_xlim(-r_outer - plot_radius_padding, r_outer + plot_radius_padding)
                     ax.set_ylim(-r_outer - plot_radius_padding, r_outer + plot_radius_padding)
                     ax.axis('off')
-                    ax.set_title(feature_name, fontsize=9) # Title for each subplot
-                    # --- End of Core Cartesian Drawing Logic ---
-
-                # Turn off any unused subplots if num_features isn't a perfect multiple of nrows*ncols
+                    ax.set_title(feature_name, fontsize=9) 
+                    
                 for i in range(num_features, nrows * ncols):
                     if i < len(master_axes_flat): # Check index bounds
                         master_axes_flat[i].axis('off')
-
-                # Add a single, shared colorbar to the master figure
-                # Adjust [left, bottom, width, height] as needed for your master_fig_width/height
-                # These are fractions of the *figure* dimensions.
                 cbar_left = 0.91 # Positioned towards the right
                 cbar_bottom = 0.15 
                 cbar_width = 0.015 # Thin colorbar
@@ -2887,15 +2549,12 @@ def run_shap_analysis_dl_OFA(model,
                 # Add overall title to the master figure
                 title_detail_composite = 'Positive Class' if is_binary_mode_flag else 'Class 0'
                 master_fig.suptitle(f"All Features - Circular SHAP Heatmaps\n(Mean Abs SHAP for {title_detail_composite} - {model_name_prefix})",
-                                    fontsize=14, y=0.98) # Adjust y if suptitle overlaps subplots
-
-                # Adjust layout to prevent overlap, considering manually placed colorbar
-                # rect can be [left, bottom, right, top]
+                                    fontsize=14, y=0.98) 
                 master_fig.tight_layout(rect=[0, 0.03, cbar_left - 0.02, 0.95]) # Leave space for cbar and suptitle
 
                 # Save the master figure
                 master_fig_filename = shap_output_dir / f"{model_name_prefix}_shap_feat_imp_circ.png"
-                master_fig.savefig(master_fig_filename, dpi=150) # Use a reasonable DPI
+                master_fig.savefig(master_fig_filename, dpi=150) 
                 plt.close(master_fig) # Close the master figure
                 logger.info(f"Saved composite circular SHAP heatmap to: {master_fig_filename}")
 
@@ -2916,14 +2575,14 @@ def run_shap_analysis_dl_OFA(model,
     return explainer_shap_values_list, explainer
 
 
-# --- 4. GRID SEARCH TUNING --- (Simplified version from draft)
+# --- 4. GRID SEARCH TUNING ---
 def grid_search_tuning_old(model_class, base_model_params, param_grid,
-                       X_train_gs, y_train_gs, # These are full train set for GS internal CV
+                       X_train_gs, y_train_gs, 
                        optimizer_base_params, criterion_gs, device_gs,
                        gs_report_dir, gs_subdirs,
-                       feature_dim_gs, # This is model_params['feature_dim']
+                       feature_dim_gs, 
                        has_channel_dim_gs,
-                       n_splits_gs=3, epochs_gs=30, batch_size_gs=16): # Reduced for speed
+                       n_splits_gs=3, epochs_gs=30, batch_size_gs=16): 
 
     logger.info(f"Starting grid search for {model_class.__name__}...")
     results = []
@@ -2957,8 +2616,6 @@ def grid_search_tuning_old(model_class, base_model_params, param_grid,
             model_gs = model_class(**current_model_params).to(device_gs)
             model_gs.apply(reset_parameters)
             optimizer_gs = torch.optim.AdamW(model_gs.parameters(), **current_optimizer_params)
-            # No scheduler or early stopping in this simplified GS for speed, or very lenient.
-            # Early stopping can be added if epochs_gs is large.
 
             _X_fold_train = torch.tensor(X_train_gs_np[train_idx], dtype=torch.float32)
             _y_fold_train = torch.tensor(y_train_gs_np[train_idx], dtype=torch.float32).unsqueeze(1)
@@ -2973,14 +2630,6 @@ def grid_search_tuning_old(model_class, base_model_params, param_grid,
             val_ds_gs = TensorDataset(_X_fold_val.to(device_gs), _y_fold_val.to(device_gs))
             train_dl_gs = DataLoader(train_ds_gs, batch_size=batch_size_gs, shuffle=True)
             val_dl_gs = DataLoader(val_ds_gs, batch_size=batch_size_gs, shuffle=False)
-            
-            # Originally, criterion_gs is for multiclass; added fol for binary
-            # if 'pos_weight_value' in params_combo:
-            #     pos_weight_tensor_gs = torch.tensor([params_combo['pos_weight_value']], dtype=torch.float32).to(device_gs)
-            #     criterion_gs = nn.BCEWithLogitsLoss(pos_weight=pos_weight_tensor_gs)
-            # else:
-            #     # Fallback to the original criterion (e.g., for multiclass or if pos_weight not in grid)
-            #     pass 
 
             for epoch in range(epochs_gs):
                 model_gs.train()
@@ -3019,13 +2668,6 @@ def grid_search_tuning_old(model_class, base_model_params, param_grid,
     best_avg_f1_score = best_params_combo.get('avg_f1', -1.0)
     logger.info(f"Best parameters for {model_class.__name__}: {best_params_combo} (Avg F1: {best_params_combo.get('avg_f1',0):.4f})")
 
-    ### ADDED
-     # --- Parameters to be returned ---
-    # Start with a copy of the original base_model_params (passed into this function)
-    # These usually contain non-tunable structural params like feature_dim, num_classes
-    # We will update this with the tuned hyperparameters from best_params_combo.
-    
-    # Tunable MODEL parameters that should be integers
     integer_model_params_keys = ['cnn_units', 'transformer_dim', 'transformer_layers', 'transformer_heads']
     
     # Initialize dictionaries for the final tuned parameters
@@ -3039,24 +2681,10 @@ def grid_search_tuning_old(model_class, base_model_params, param_grid,
                     final_tuned_model_hyperparams[key] = int(value)
             elif key == 'dropout_rate': # Example of a float model hyperparameter
                 final_tuned_model_hyperparams[key] = float(value)
-            # Add other specific float model hyperparameters here if any from the grid
-            
-            # Optimizer hyperparameters
             elif key == 'learning_rate':
                 final_tuned_optimizer_hyperparams['lr'] = float(value)
             elif key == 'weight_decay':
                 final_tuned_optimizer_hyperparams['weight_decay'] = float(value)
-    ##
-
-    # OG >>
-    # final_best_model_params = base_model_params.copy()
-    # model_specific_best_params = {k: v for k,v in best_params_combo.items() if k in final_best_model_params or k in ['cnn_units', 'transformer_dim', 'transformer_heads', 'transformer_layers', 'dropout_rate']}
-    # final_best_model_params.update(model_specific_best_params)
-
-    # final_best_optimizer_params = optimizer_base_params.copy()
-    # if 'learning_rate' in best_params_combo: final_best_optimizer_params['lr'] = best_params_combo['learning_rate']
-    # if 'weight_decay' in best_params_combo: final_best_optimizer_params['weight_decay'] = best_params_combo['weight_decay']
-
     # Plot grid search results (simplified)
     if len(param_grid) > 0 and not results_df.empty:
         main_param_to_plot = list(param_grid.keys())[0]
@@ -3072,7 +2700,6 @@ def grid_search_tuning_old(model_class, base_model_params, param_grid,
             except Exception as e:
                 logger.error(f"Could not plot GS results for {main_param_to_plot}: {e}")
 
-    # return final_best_model_params, final_best_optimizer_params, best_avg_f1_score
     return final_tuned_model_hyperparams, final_tuned_optimizer_hyperparams, best_avg_f1_score
 
 
@@ -3177,13 +2804,10 @@ def grid_search_tuning(model_class, base_model_params, param_grid_list,
 
     results_df = pd.DataFrame([{**r['params'], 'avg_f1': r['avg_f1'], 'std_f1': r['std_f1']} for r in results])
     results_df = results_df.sort_values(by='avg_f1', ascending=False)
-    # results_df.to_csv(gs_subdirs['metrics'] / f"{model_class.__name__}_grid_search_results.csv", index=False)
-    # alternative added
     if worker_results_file:
         results_df.to_csv(worker_results_file, index=False)
         logger.info(f"Saved worker results to {worker_results_file}")
     else:
-        # Fallback for single-GPU run, keeps original behavior
         results_df.to_csv(gs_subdirs['metrics'] / f"{model_class.__name__}_grid_search_results.csv", index=False)
 
 
@@ -3192,8 +2816,6 @@ def grid_search_tuning(model_class, base_model_params, param_grid_list,
     logger.info(f"Best parameters for {model_class.__name__}: {best_params_combo} (Avg F1: {best_params_combo.get('avg_f1',0):.4f})")
 
     # Updated
-    # Define the keys for different parameter types
-    # Tunable MODEL parameters that should be integers
     integer_model_params_keys = ['cnn_units', 'transformer_dim', 'transformer_layers', 'transformer_heads']
     float_optimizer_params_keys = ['learning_rate', 'weight_decay']
     float_model_params_keys = ['dropout_rate', 'cnn_dropout', 'transformer_dropout', 'fc_dropout', 'pos_weight_value']
@@ -3207,14 +2829,6 @@ def grid_search_tuning(model_class, base_model_params, param_grid_list,
             if key in integer_model_params_keys:
                 if value is not None and not (isinstance(value, float) and math.isnan(value)):
                     final_tuned_model_hyperparams[key] = int(value)
-            # elif key == 'dropout_rate': # Example of a float model hyperparameter
-            #     final_tuned_model_hyperparams[key] = float(value)
-            # # Add other specific float model hyperparameters here if any from the grid
-            # # Optimizer hyperparameters
-            # elif key == 'learning_rate':
-            #     final_tuned_optimizer_hyperparams['lr'] = float(value)
-            # elif key == 'weight_decay':
-            #     final_tuned_optimizer_hyperparams['weight_decay'] = float(value)
             elif key in float_model_params_keys:
                 if value is not None and not (isinstance(value, float) and math.isnan(value)):
                     final_tuned_model_hyperparams[key] = float(value)
@@ -3223,24 +2837,7 @@ def grid_search_tuning(model_class, base_model_params, param_grid_list,
                     final_tuned_optimizer_hyperparams['lr'] = float(value)
                 elif key == 'weight_decay':
                     final_tuned_optimizer_hyperparams['weight_decay'] = float(value)
-    ##    
-    # Add pos_weight_value to the model params dict
-    # if 'pos_weight_value' in best_params_combo:
-    #     final_tuned_model_hyperparams['pos_weight_value'] = best_params_combo['pos_weight_value']
-
-
-    # OG >>
-    # final_best_model_params = base_model_params.copy()
-    # model_specific_best_params = {k: v for k,v in best_params_combo.items() if k in final_best_model_params or k in ['cnn_units', 'transformer_dim', 'transformer_heads', 'transformer_layers', 'dropout_rate']}
-    # final_best_model_params.update(model_specific_best_params)
-
-    # final_best_optimizer_params = optimizer_base_params.copy()
-    # if 'learning_rate' in best_params_combo: final_best_optimizer_params['lr'] = best_params_combo['learning_rate']
-    # if 'weight_decay' in best_params_combo: final_best_optimizer_params['weight_decay'] = best_params_combo['weight_decay']
-
-    # Plot grid search results (old)
-    # if len(param_grid) > 0 and not results_df.empty:
-    #     main_param_to_plot = list(param_grid.keys())[0]
+    
     if len(param_grid_list) > 0 and not results_df.empty:
         main_param_to_plot = list(param_grid_list[0].keys())[0] # Get the keys from the first dictionary in the list
         if main_param_to_plot in results_df.columns:
@@ -3363,7 +2960,6 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
         X_holdout_imputed = imputer.transform(X_holdout_raw)
 
         # 4. Perform the internal train/test split on the train_val data
-        # The 'X_train_orig' and 'X_test_orig' variables will hold the imputed but unscaled data, as required.
         X_train_orig, X_test_orig, y_train_encoded, y_test_encoded = train_test_split(
             X_train_val_imputed, y_train_val_encoded, test_size=test_size, random_state=random_state, stratify=y_train_val_encoded
         )
@@ -3404,12 +3000,6 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
         logger.info(f"Applying standard split logic. Loading data from {data_path} for dataset '{dataset_name}'")
         df = pd.read_csv(data_path)
         logger.info(f"Data loaded: {df.shape[0]} rows, {df.shape[1]} columns")
-        # Using all 9 features
-        # Adjust if necessary. Target is the last--> df.iloc[:, :-1]
-        # num_feature_cols = df.shape[1] - 4 
-        # X_raw = df.iloc[:, :num_feature_cols].values.astype(np.float32)
-        # y_original_raw = df.iloc[:, -1].values
-
         if df.shape[1] <= 1:
             raise ValueError("Data must have at least one feature column and one target column.")
             
@@ -4087,8 +3677,6 @@ def main(args):
 
     # Loss function
     if args.dataset == 'scania_aps':
-        # Calculate pos_weight for the highly imbalanced dataset
-        # pos_weight = count(negative) / count(positive)
         y_train_series = pd.Series(data_dict['y_train_np'])
         counts = y_train_series.value_counts()
         pos_weight_value = counts[0] / counts[1]
@@ -4100,8 +3688,6 @@ def main(args):
         criterion = nn.CrossEntropyLoss()
         logger.info(f"Using CrossEntropyLoss for multiclass ({num_classes} classes).")
     elif (args.binary_classification and num_classes == 2):  
-        # --- START OF MODIFICATION ---
-        # Check if a resampling method was specified via command-line arguments
         if args.resampling_method:
             # If resampling is used, pos_weight can be 1.0 (no weighting needed)
             pos_weight_tensor = torch.tensor([1.0], dtype=torch.float32)
@@ -4114,24 +3700,13 @@ def main(args):
             pos_weight_tensor = torch.tensor([pos_weight_value], dtype=torch.float32)
             logger.info(f"Using BCEWithLogitsLoss with dynamically calculated pos_weight: {pos_weight_value:.2f}.")
         criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_tensor.to(device))
-        # --- END OF MODIFICATION ---
-               
-    #     pos_weight_value_float = 1.5 
-    #     pos_weight_tensor = torch.tensor([pos_weight_value_float], dtype=torch.float32)
-    #     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_tensor.to(device))
-    #     logger.info(f"Using BCEWithLogitsLoss with HARDCODED pos_weight: {pos_weight_tensor.item():.2f}.")
-    # elif args.binary_classification and num_classes == 1 :
-    #     logger.error("Binary mode, but only 1 class found after processing.")
-    #     raise ValueError("Binary mode, 1 class found. Check data.")
     else: 
         logger.error(f"Inconsistent args: binary={args.binary_classification}, classes={num_classes}.")
         raise ValueError("Cannot determine loss function.")
     # 
     # 
   
-    # ==============================================================================
-    # --- STAGE 1: MODEL TRAINING & VALIDATION ---
-    # ==============================================================================
+    # STAGE 1: MODEL TRAINING & VALIDATION 
     experiment_summary_results = []
     all_trained_model_paths = {}
     all_final_model_eval_metrics = {} # For the simple comparison summary
@@ -4199,37 +3774,15 @@ def main(args):
             param_grid_for_tuning = {}
             if model_type == 'CNN':
                 param_grid_for_tuning = {
-                    # 'cnn_units': [32, 64, 128], 'dropout_rate': [0.2, 0.3, 0.5],
-                    # 'learning_rate': [1e-5, 1e-4, 1e-3], 'weight_decay': [1e-5, 1e-4, 1e-3] # wider range
                     'cnn_units': [64, 128],             
                     'dropout_rate': [0.2, 0.3],         
                     'learning_rate': [1e-4, 1e-3],      
                     'weight_decay': [1e-5, 1e-4, 1e-3],
                     'pos_weight_value': [1.0, 59.0, 75.0, 100.0, 200.0]                   
                 }
-                #debugging with smaller grid
-            # if model_type == 'CNN':
-            #     param_grid_for_tuning = {
-            #         # 'cnn_units': [32, 64, 128], 'dropout_rate': [0.2, 0.3, 0.5],
-            #         # 'learning_rate': [1e-5, 1e-4, 1e-3], 'weight_decay': [1e-5, 1e-4, 1e-3] # wider range
-            #         'cnn_units': [64, 128],             
-            #         'dropout_rate': [0.2],         
-            #         'learning_rate': [1e-4],      
-            #         'weight_decay': [1e-5]                   
-            #     }    
                 
             elif model_type == 'Transformer':
                 param_grid_for_tuning = {
-                    # 'transformer_dim': [64, 128], 'transformer_layers': [1, 2, 3],
-                    # 'transformer_heads': [2, 4, 8], 'dropout_rate': [0.1, 0.2, 0.3],
-                    # 'learning_rate': [1e-5, 1e-4, 1e-3], 'weight_decay': [1e-5, 1e-4, 1e-3] # wider range
-                    # 'transformer_dim': [64],            # Fix dimension to reduce combinations.
-                    # 'transformer_layers': [1, 2],       # Test a shallow vs. slightly deeper model.
-                    # 'transformer_heads': [2, 4],        # Focus on a reasonable number of heads.
-                    # 'dropout_rate': [0.2, 0.3],
-                    # 'learning_rate': [1e-4, 1e-3],
-                    # 'weight_decay': [1e-5, 1e-4, 1e-3],
-                    # 'pos_weight_value': [1.0, 59.0, 75.0, 100.0, 200.0],
                     #sample
                     'transformer_dim': [64, 128],
                     'transformer_layers': [1], # Keep it simple to avoid overfitting
@@ -4241,23 +3794,6 @@ def main(args):
                 }
             elif model_type == 'CNNTransformer_sequential' or model_type == 'CNNTransformer_parallel':
                 param_grid_for_tuning = {
-                    # 'cnn_units': [32, 64], 'transformer_dim': [64, 128],
-                    # 'transformer_layers': [1], 'transformer_heads': [2],
-                    # 'cnn_dropout': [0.2, 0.3, 0.5], 'transformer_dropout': [0.2, 0.3, 0.5],
-                    # 'fc_dropout': [0.2, 0.3, 0.5],
-                    # 'learning_rate': [1e-3], 'weight_decay': [1e-5, 1e-3]
-                # sample 2
-                    # 'cnn_units': [32, 64, 128],  # Smaller than before
-                    # 'transformer_dim': [32, 64],  # Ensure divisible by heads
-                    # 'transformer_layers': [1, 2],
-                    # 'transformer_heads': [ 2],  # Fewer heads
-                    # 'cnn_dropout': [0.2, 0.3], #, 0.5],  # Explore higher dropout
-                    # 'transformer_dropout': [0.2, 0.3], #0.5],  # Explore higher dropout
-                    # 'fc_dropout': [0.3, 0.2], #, 0.5],  # Explore higher dropout for the final layer
-                    # 'learning_rate': [1e-3],
-                    # 'weight_decay': [1e-4],  #[1e-3, 5e-3, 1e-3]  # Explore stronger L2 regularization
-                    # 'pos_weight_value': [1.0] #, 59.0, 75.0, 100.0, 200.0]    
-                    # sample
                         'cnn_units': [32, 64],
                         'transformer_dim': [32, 64],
                         'transformer_layers': [1],
@@ -4270,10 +3806,6 @@ def main(args):
                         'pos_weight_value': [1.0, 59.0, 75.0] 
                 }   
             
-            # if args.binary_classification:
-                # param_grid_for_tuning['pos_weight_value'] = [1.0, 59.0, 75.0, 100.0, 200.0]         
-            
-            # --- START of the parallel/sequential execution block ---
             if param_grid_for_tuning:
                 param_combinations = list(ParameterGrid(param_grid_for_tuning))
                 logger.info(f"Number of total parameter combinations: {len(param_combinations)}")
@@ -4320,7 +3852,6 @@ def main(args):
 
                     logger.info(f"Tuning for {model_type}: Best CV F1={best_tuning_score:.4f}")
                     
-                    # --- ADD THIS LOGIC HERE TO HANDLE TYPE CASTING ---
                     final_tuned_params = {k: v for k, v in best_params_combo.items() if k not in ['learning_rate', 'weight_decay', 'avg_f1', 'std_f1']}
                     
                     # Manually cast model-specific parameters to the correct types
@@ -4332,7 +3863,6 @@ def main(args):
                         final_tuned_params['transformer_heads'] = int(final_tuned_params['transformer_heads'])
                     if 'transformer_layers' in final_tuned_params:
                         final_tuned_params['transformer_layers'] = int(final_tuned_params['transformer_layers'])
-                    # --- END OF ADDITION ---
                     
                     current_model_specific_params.update({k: v for k, v in best_params_combo.items() if k not in ['learning_rate', 'weight_decay', 'avg_f1', 'std_f1']})
                     current_optimizer_params.update({
@@ -4360,31 +3890,6 @@ def main(args):
                     current_optimizer_params.update(tuned_optim_hparams)
             else:
                 logger.info(f"No param grid for {model_type} tuning. Using defaults.")
-            # --- END of the parallel/sequential execution block ---
-            
-            # if param_grid_for_tuning:
-            #     initial_params_for_gs = {**base_constructor_params, **current_model_specific_params}
-            #     tuned_model_hparams, tuned_optim_hparams, best_tuning_score = grid_search_tuning(
-            #         model_class=model_class_ref, 
-            #         base_model_params=initial_params_for_gs,
-            #         param_grid=param_grid_for_tuning, 
-            #         X_train_gs=X_train_full, 
-            #         y_train_gs=y_train_full,
-            #         optimizer_base_params=current_optimizer_params, 
-            #         criterion_gs=criterion, device_gs=device,
-            #         gs_report_dir=report_dir, gs_subdirs=subdirs,
-            #         n_splits_gs=args.cv_splits_tuning, epochs_gs=args.epochs_tuning, 
-            #         batch_size_gs=args.batch_size,
-            #         feature_dim_gs= feature_dim,
-            #         has_channel_dim_gs=has_channel_dim_model_input,
-            #         is_binary_mode=args.binary_classification, 
-            #         # num_model_output_classes=model_output_classes
-            #     )
-            #     logger.info(f"Tuning for {model_type}: Best CV F1={best_tuning_score:.4f}")
-            #     current_model_specific_params.update(tuned_model_hparams)
-            #     current_optimizer_params.update(tuned_optim_hparams)
-            # else:
-            #     logger.info(f"No param grid for {model_type} tuning. Using defaults.")
             
             logger.info(f"Params for final {model_type} training: Model={current_model_specific_params}, Optim={current_optimizer_params}")
 
@@ -4395,18 +3900,15 @@ def main(args):
         final_model_constructor_params = {**base_constructor_params, **current_model_specific_params}
         logger.info(f"For {model_type}, final constructor params: {final_model_constructor_params}")
 
-        # --- Create a copy of the constructor params
         model_params_for_training = final_model_constructor_params.copy()
-        # Remove the pos_weight_value, as it's only for the loss function
         if 'pos_weight_value' in model_params_for_training:
             model_params_for_training.pop('pos_weight_value')
-        # ------
         
         
         
 
         final_model_path, _, avg_cv_metrics = train_model_with_cv(
-            model_class=model_class_ref, model_params=model_params_for_training, #final_model_constructor_params,
+            model_class=model_class_ref, model_params=model_params_for_training, 
             X_train_all=X_train_full, y_train_all=y_train_full, optimizer_params=current_optimizer_params,
             criterion=criterion, device=device, model_name_base=model_type, report_dir=report_dir, subdirs=subdirs,
             n_splits=args.cv_splits_training, epochs=args.epochs_training, batch_size=args.batch_size,
@@ -4420,12 +3922,6 @@ def main(args):
             'avg_cv_metrics': avg_cv_metrics
         }
         
-        
-        # --- Evaluate on the test set for the simple comparison CSV ---
-        # if data_dict['X_test'].numel() > 0:
-        #     # ... (your existing logic to evaluate on the test set)
-        #     eval_metrics = evaluate_model(...)
-        #     all_final_model_eval_metrics[model_type] = eval_metrics
         if X_test_eval.numel() > 0 and y_test_eval.numel() > 0:
             logger.info(f"--- Evaluating final {model_type} on test set ---")
             # final_model_to_eval = model_class_ref(**final_model_constructor_params).to(device)
@@ -4512,19 +4008,6 @@ def main(args):
                     # label_encoder if not data_dict['is_binary_mode'] else None,
                     class_indices_to_explain=None,
                     explainer_type='kernel' #'gradient', #'deep', or 'kernel'.
-                    
-                    # model=final_model_to_eval,
-                    # X_data_np=X_test_for_shap_np,
-                    # feature_names=data_dict['feature_names'],
-                    # model_name_prefix=f"{model_type}_final_test", 
-                    # report_dir=report_dir, subdirs=subdirs, device=device,
-                    # is_binary_mode_flag=data_dict['is_binary_mode'], 
-                    # num_actual_classes=num_classes,
-                    # class_indices_to_explain=0 if not args.binary_classification and num_classes > 1 else None,
-                    # group_metrics_list=data_dict.get('metrics_group_names'), 
-                    # num_zones_per_metric=data_dict.get('num_zones'),
-                    # is_transformer_model_heuristic=is_transformer_heuristic_flag_for_shap, # Pass the flag
-                    # X_train_data_np_for_background=X_train_np_scaled_for_shap_bg # Pass training data for background
                 )
             else:
                 logger.info(f"Test set for SHAP (X_test_np_scaled) empty/not found for {model_type}. Skipping.")
@@ -4537,10 +4020,7 @@ def main(args):
     else:
         logger.info("No models evaluated on test set for comparison.")
 
-
-    # ==============================================================================
-    # --- STAGE 2: POST-ANALYSIS ON HOLDOUT SET ---
-    # ==============================================================================
+    # STAGE 2: POST-ANALYSIS ON HOLDOUT SET 
     all_holdout_results = {}
     if data_dict.get('X_holdout') is not None and data_dict['X_holdout'].numel() > 0 and all_trained_model_paths:
         logger.info("\n--- Starting Post-Training Holdout Analysis for All Trained Models ---")
@@ -4554,7 +4034,6 @@ def main(args):
                 model_info = all_trained_model_paths[model_key]
                 path_to_final_model_for_post = model_info['final_model']
                 params_for_post_model = model_info['params']
-                # added to remove pos-weight from params if present
                 model_params_for_post_analysis = params_for_post_model.copy()
                 if 'pos_weight_value' in model_params_for_post_analysis:
                     model_params_for_post_analysis.pop('pos_weight_value')
@@ -4565,7 +4044,6 @@ def main(args):
                 model_class_creator_post = None
                 if model_key == 'CNN': model_class_creator_post = CNNModel
                 elif model_key == 'Transformer': model_class_creator_post = TransformerModel
-                # elif 'CNNTransformer' in model_key: model_class_creator_post = CNNTransformerModel
                 elif model_key == 'CNNTransformer_sequential' or \
                  model_key == 'CNNTransformer_parallel':
                     model_class_creator_post = CNNTransformerModel
@@ -4625,10 +4103,7 @@ def main(args):
     else: 
         logger.info("No holdout data available for post-training analysis.")
 
-    # ==============================================================================
-    # --- STAGE 3: FINAL COMPARISONS & REPORTING ---
-    # ==============================================================================
-    
+    #  STAGE 3: FINAL COMPARISONS & REPORTING     
     # --- Perform McNemar's Test on Holdout Predictions ---
     if len(all_holdout_results) >= 2:
         logger.info("\n--- Comparing Models with McNemar's Test on Holdout Set ---")
@@ -4647,7 +4122,6 @@ def main(args):
                  p_value_str = 'BEST_MODEL'
             experiment_summary_results[i]['mcnemar_p_vs_best_holdout'] = p_value_str
     
-    # --- Create and Save the Final Summary CSV ---
     if experiment_summary_results:
         final_summary_df = pd.DataFrame(experiment_summary_results)
         summary_csv_path = subdirs['post_analysis'] / 'metrics' / f"{args.experiment_name}_final_summary.csv"
@@ -4672,13 +4146,11 @@ def main(args):
 
 
 
-
-
 if __name__ == '__main__':
     try:
         mp.set_start_method('spawn', force=True)
     except RuntimeError:
-        pass # This handles cases where it might already be set
+        pass 
     
     parser = argparse.ArgumentParser(description="Deep Learning Classification Pipeline")
     parser.add_argument("--data_path", type=str, required=True, help="Path to the TRAINING data file.")

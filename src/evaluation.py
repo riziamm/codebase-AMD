@@ -221,12 +221,12 @@ def calculate_cohens_d(df, feature_column, target_column, class1_label=0, class2
 
 
 # -------------Evaluation FUNCTIONS------------
-def evaluate_saved_model(model_path, # Keep model_path
-                         test_data_path=None, # Keep for backward compat/validation eval
-                         holdout_data_path=None, # ADDED: Path to raw holdout CSV
+def evaluate_saved_model(model_path, 
+                         test_data_path=None,
+                         holdout_data_path=None, 
                          report_dir=None,
                          class_balance_report=True,
-                         analyze_shap=False): # ADDED: Flag to run SHAP
+                         analyze_shap=False): 
     """
     Evaluate a saved model on validation data (test_data.pkl) or holdout data (holdout_data_path).
     Includes optional SHAP analysis on the specified dataset.
@@ -316,18 +316,15 @@ def evaluate_saved_model(model_path, # Keep model_path
 
     print(f"\n--- Evaluating {model_path.stem} on {eval_data_source} data ---")
 
-    # Analyze class balance in the evaluation set
-
-    # Make predictions
+  s
     y_pred = model.predict(X_eval)
 
     # Calculate metrics
     accuracy = accuracy_score(y_eval, y_pred)
     f1 = f1_score(y_eval, y_pred, average='weighted')
-    report_dict = classification_report(y_eval, y_pred, output_dict=True, zero_division=0) # Use dict, handle zero division
-    report_str = classification_report(y_eval, y_pred, zero_division=0) # String version for printing
+    report_dict = classification_report(y_eval, y_pred, output_dict=True, zero_division=0) 
+    report_str = classification_report(y_eval, y_pred, zero_division=0) 
     
-    # Added ROC AUC and Average Precision 
     roc_auc_eval = None
     avg_precision_eval = None
     if hasattr(model, 'predict_proba'): 
@@ -342,8 +339,6 @@ def evaluate_saved_model(model_path, # Keep model_path
         elif y_proba_eval.shape[1] > 2: # Multiclass
             try:
                 roc_auc_eval = roc_auc_score(y_eval, y_proba_eval, multi_class='ovr', average='macro')
-                # AP for multiclass: Can be calculated per class then averaged.
-                # For now, we'll focus on ROC AUC for multiclass detailed metric.
             except Exception as e_auc_mc:
                 print(f"Could not calculate multiclass ROC AUC: {e_auc_mc}")
 
@@ -370,10 +365,9 @@ def evaluate_saved_model(model_path, # Keep model_path
             'evaluation_data_source': eval_data_source,
             'accuracy': accuracy,
             'f1_score': f1,
-            'roc_auc': roc_auc_eval, # Added
+            'roc_auc': roc_auc_eval, 
             'average_precision': avg_precision_eval,
             'classification_report': report_dict,
-            # Add class distribution if needed
         }
         metrics_path = eval_report_dir / 'evaluation_metrics.json'
         try:
@@ -484,9 +478,6 @@ def evaluate_saved_model(model_path, # Keep model_path
         if feature_names is None: # fix with relatable feature names/from column heading
             print("WARNING: Feature names not available for SHAP plots. Using generic names.")
             feature_names = [f'feature_{i}' for i in range(X_eval.shape[1])]
-            # feature_names = list(holdout_df.columns[:-1]) if holdout_data_path else [f'feature_{i}' for i in range(X_eval.shape[1])]
-            # if feature_idx is not None:
-            #     feature_names = [feature_names[i] for i in feature_idx]
                 
             
 
@@ -503,29 +494,11 @@ def evaluate_saved_model(model_path, # Keep model_path
                 sample_idx=sample_idx_to_plot,
                 plot_type=plot_type,
                 report_dir=eval_report_dir,
-                # # Pass grouping parameters needed for grouped_waterfall
-                # num_feature_groups=num_base_features,
-                # values_per_group=values_per_group_def,
                 group_metrics=metrics,
                 is_binary=is_binary,
                 y_test=y_eval
             )
         
-        
-            
-        # elif plot_type == 'circular_heatmap':
-        #     print("Preparing data for circular heatmap...")
-        #     # This plot requires the base SHAP values for a specific class
-        #     if values_for_plot is not None and group_metrics and 'values_per_group' in locals():
-        #         plot_circular_shap_heatmap(
-        #             shap_values=values_for_plot,
-        #             feature_names=group_metrics,
-        #             num_zones_per_metric=values_per_group,
-        #             model_name_prefix=model_name_str,
-        #             shap_output_dir=report_dir / 'figures' if report_dir else Path('.')
-        #         )
-        #     else:
-        #         print("Skipping circular heatmap due to missing data (SHAP values, group_metrics, or values_per_group).")
         
         if isinstance(model, (RandomForestClassifier, GradientBoostingClassifier, xgb.XGBClassifier)):
              run_shap_analysis(model, X_eval, feature_names=feature_names, plot_type='beeswarm', report_dir=eval_report_dir, is_binary=is_binary,y_test=y_eval)
@@ -533,7 +506,7 @@ def evaluate_saved_model(model_path, # Keep model_path
         # Add waterfall/force plots if desired
         run_shap_analysis(model, X_eval, feature_names=feature_names, sample_idx=0, plot_type='waterfall', report_dir=eval_report_dir, is_binary=is_binary,y_test=y_eval)
 
-    plt.close('all') # Close all figures at the end
+    plt.close('all') 
 
     return { # Return metrics dictionary
         'accuracy': accuracy,
@@ -542,7 +515,6 @@ def evaluate_saved_model(model_path, # Keep model_path
         'average_precision': avg_precision_eval, # added
         'classification_report': report_dict,
         'evaluation_data_source': eval_data_source
-        # Add other relevant info if needed
     }
 
 def check_and_balance_test_data(test_data_path, min_samples_per_class=None, balance_method='undersample'):
@@ -620,177 +592,6 @@ def check_and_balance_test_data(test_data_path, min_samples_per_class=None, bala
         print(f"Class {class_name}: {count} samples ({count/len(y_balanced)*100:.1f}%)")
     
     return X_balanced, y_balanced
-
-def compare_models_v1(model_paths, test_data_path, report_dir=None, balance_test_data=True, balance_method='undersample'):
-    """
-    Compare multiple saved models on the same test data
-    
-    Args:
-        model_paths: List of paths to model files
-        test_data_path: Path to the test data file
-        report_dir: Directory to save comparison results
-        balance_test_data: Whether to balance the test data for fair comparison
-        balance_method: Method to balance data ('undersample', 'oversample', or 'none')
-    """
-    # Load test data
-    with open(test_data_path, 'rb') as f:
-        test_data = pickle.load(f)
-    X_test = test_data['X_test']
-    y_test = test_data['y_test']
-    le = test_data.get('le', None)
-    
-    # Check and balance test data if requested
-    if balance_test_data:
-        X_test, y_test = check_and_balance_test_data(
-            test_data_path, 
-            balance_method=balance_method
-        )
-    
-    # Evaluate each model
-    results = {}
-    for model_path in model_paths:
-        model_name = Path(model_path).stem
-        print(f"\nEvaluating model: {model_name}")
-        
-        # Load model
-        model = load_model(model_path)
-        
-        # Make predictions
-        y_pred = model.predict(X_test)
-        
-        # Calculate metrics
-        accuracy = accuracy_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred, average='weighted')
-        report = classification_report(y_test, y_pred, output_dict=True)
-        
-        # Calculate class-specific metrics
-        class_metrics = {}
-        for class_label in np.unique(y_test):
-            mask = (y_test == class_label)
-            class_acc = accuracy_score(y_test[mask], y_pred[mask])
-            class_f1 = f1_score(y_test[mask], y_pred[mask], average='weighted')
-            
-            class_name = class_label
-            if le is not None:
-                try:
-                    class_name = le.inverse_transform([class_label])[0]
-                except:
-                    pass
-                
-            class_metrics[str(class_name)] = {
-                'accuracy': class_acc,
-                'f1_score': class_f1,
-                'support': int(mask.sum())
-            }
-        
-        results[model_name] = {
-            'accuracy': accuracy,
-            'f1_score': f1,
-            'classification_report': report,
-            'class_metrics': class_metrics,
-            'y_pred': y_pred
-        }
-        
-        print(f"Accuracy: {accuracy:.4f}")
-        print(f"F1 Score: {f1:.4f}")
-        
-        # Print class-specific metrics
-        print("\nClass-specific metrics:")
-        for class_name, metrics in class_metrics.items():
-            print(f"Class {class_name}: Accuracy={metrics['accuracy']:.4f}, F1={metrics['f1_score']:.4f}")
-    
-    # Compare models with visualizations
-    plt.figure(figsize=(12, 8))
-    
-    # Plot overall accuracy and F1 score
-    models = list(results.keys())
-    accuracies = [results[model]['accuracy'] for model in models]
-    f1_scores = [results[model]['f1_score'] for model in models]
-    
-    x = np.arange(len(models))
-    width = 0.35
-    
-    plt.subplot(2, 1, 1)
-    plt.bar(x - width/2, accuracies, width, label='Accuracy')
-    plt.bar(x + width/2, f1_scores, width, label='F1 Score')
-    plt.xlabel('Models')
-    plt.ylabel('Score')
-    plt.title('Overall Model Performance')
-    plt.xticks(x, models, rotation=45, ha='right')
-    plt.legend()
-    
-    # Plot class-specific F1 scores
-    unique_classes = sorted(list(results[models[0]]['class_metrics'].keys()))
-    
-    plt.subplot(2, 1, 2)
-    bar_width = width / (len(unique_classes) + 1)
-    
-    for i, class_name in enumerate(unique_classes):
-        class_f1s = [results[model]['class_metrics'][class_name]['f1_score'] for model in models]
-        plt.bar(x + (i - len(unique_classes)/2) * bar_width, class_f1s, bar_width, 
-                label=f'Class {class_name}')
-    
-    plt.xlabel('Models')
-    plt.ylabel('F1 Score')
-    plt.title('Class-specific F1 Scores')
-    plt.xticks(x, models, rotation=45, ha='right')
-    plt.legend()
-    
-    plt.tight_layout()
-    
-    # Save comparison results if report directory is provided
-    if report_dir is not None:
-        report_dir = Path(report_dir)
-        report_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Save metrics
-        with open(report_dir / 'model_comparison.pkl', 'wb') as f:
-            pickle.dump(results, f)
-        
-        # Save comparison plot
-        plt.savefig(report_dir / 'model_comparison.png', dpi=300, bbox_inches='tight')
-        plt.close(plt.gcf())
-        
-        # Create HTML report
-        create_comparison_html_report(results, report_dir, balance_method if balance_test_data else 'none')
-    
-    # plt.show()
-    # plt.close(plt.gcf())
-    
-    # Create confusion matrix comparison
-    num_models = len(models)
-    fig, axes = plt.subplots(1, num_models, figsize=(6*num_models, 5), squeeze=False)
-    
-    for i, model_name in enumerate(models):
-        y_pred = results[model_name]['y_pred']
-        cm = confusion_matrix(y_test, y_pred)
-        
-        # Normalize confusion matrix
-        cm_norm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        
-        # Plot
-        ax = axes[0, i]
-        sns.heatmap(cm_norm, annot=True, fmt='.2f', cmap='Blues', ax=ax)
-        ax.set_title(f'{model_name}')
-        ax.set_xlabel('Predicted')
-        ax.set_ylabel('True')
-    
-    plt.tight_layout()
-    
-    if report_dir is not None:
-        plt.savefig(report_dir / 'confusion_matrix_comparison.png', dpi=300, bbox_inches='tight')
-    
-    plt.show()
-    plt.close(plt.gcf())
-    
-    return results
-
-
-
-
-
-    # return comparison_results
-
 
 def compare_models(model_paths,
                    test_data_path=None,
