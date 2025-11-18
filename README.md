@@ -139,7 +139,7 @@ python dl_pipeline_gen.py \
 
 2. Run a single model (CNN) on the Scania APS dataset with resampling (no tuning):
 ```bash
-python dl_pipeline_gen_v3.py \
+python dl_pipeline_gen.py \
     --dataset scania_aps \
     --data_path "data/aps_training.csv" \
     --test_data_path "data/aps_test.csv" \
@@ -152,7 +152,7 @@ python dl_pipeline_gen_v3.py \
 ### Output
 All results are saved in the `reports/dl_pipeline/` directory, organized by your `--experiment_name`
 ```
-reports/dl_pipeline/[your_experiment_name]/
+reports/dl_pipeline/[experiment_name]/
 ├── data/               # Saved scaler, label encoder, and holdout data
 ├── figures/            # All plots (ROC, CM, SHAP)
 ├── metrics/            # All metrics (CSVs, JSONs)
