@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# Data
+data/*.csv
+data/*.pkl
+
+# Models
+models/
+
+# Reports
+reports/
+
+# OS-specific
+.DS_Store
+
+# other codes
+model_results_bin.csv
+workflow_eval_v3.sh

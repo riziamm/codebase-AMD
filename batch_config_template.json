@@ -1,0 +1,32 @@
+[
+    {
+        "normalization": "standard",
+        "sampling_method": "smote",
+        "is_binary": true,
+        "preserve_zones": true,
+        "sort_features": "none",
+        "tune_hyperparams": false,
+        "analyze_shap": true,
+        "transform_features": false
+    },
+    {
+        "normalization": "minmax",
+        "sampling_method": "smote",
+        "is_binary": true,
+        "preserve_zones": true,
+        "sort_features": "none",
+        "tune_hyperparams": true,
+        "analyze_shap": false,
+        "transform_features": false
+    },
+    {
+        "normalization": "standard",
+        "sampling_method": "smote",
+        "is_binary": false,
+        "preserve_zones": true,
+        "sort_features": "ascend_all",
+        "tune_hyperparams": false,
+        "analyze_shap": true,
+        "transform_features": false
+    }
+]
