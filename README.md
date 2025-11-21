@@ -1,7 +1,7 @@
 # Configurable Machine & Deep Learning Pipeline for Classification
 
 This repository contains the official code for the paper submitted to JAMIA, titled:
-**"Advancing Interpretable Multimodal Deep Learning, Clinically-Valid Information Visualization, and Non-Invasive Ocular Biomarkers of Age-Related Macular Degeneration at Early Stages"**
+**"Interpretable Multimodal Deep Learning and Clinician-Friendly Visualization for Non-Invasive Ocular Biomarkers in Early Age-Related Macular~Degeneration"**
 
 It includes two main components:
   * A configurable **Machine Learning (ML) pipeline** (in the `src/` folder) for end-to-end experiments on tabular data.
