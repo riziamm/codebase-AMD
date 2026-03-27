@@ -168,7 +168,7 @@ reports/dl_pipeline/[experiment_name]/
 # Citation
 If you use this code in your research, please cite our paper:
 ```
-Rizia, M. M., van Kleef, J. P., Rai, B. B., Maddess, T., & Suominen, H. (2025). Interpretable Multimodal Deep Learning and Clinician-Friendly Visualization for Non-Invasive Ocular Biomarkers in Early Age-Related Macular~Degeneration [Manuscript submitted for publication]. Journal of the American Medical Informatics Association.
+[Author details blinded for double-blind peer review] (2026). Interpretable Multimodal Deep Learning and Clinician-Friendly Visualization for Non-Invasive Ocular Biomarkers in Early Age-Related Macular~Degeneration [Manuscript submitted for publication]. 
 ```
 
 # License
