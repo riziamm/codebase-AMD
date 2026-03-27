@@ -11,8 +11,8 @@ It includes two main components:
 
 #### 1. Clone the Repository
 ```bash
-git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
-cd your-repo-name
+git clone [https://github.com/XX/repo-name.git]
+cd repo-name
 ```
 
 #### 2. Create Environment and Install Dependencies
