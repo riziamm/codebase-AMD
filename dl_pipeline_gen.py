@@ -32,6 +32,7 @@ from sklearn.metrics import cohen_kappa_score
 from statsmodels.stats.contingency_tables import mcnemar
 from scipy.stats import chi2
 from sklearn.impute import SimpleImputer
+from src.eye_split import eye_ids_from_df, grouped_train_test_split, EyeGroupedKFold, assert_no_eye_overlap  # [eye-grouped rerun]
 
 # Set up logging
 logging.basicConfig(
@@ -593,13 +594,15 @@ def train_model_with_cv(model_class, model_params, X_train_all, y_train_all,
                       optimizer_params, criterion, device,
                       model_name_base, report_dir, subdirs,
                       is_binary, num_class, 
-                      n_splits=5, epochs=30, batch_size=16, has_channel_dim_input=True):
+                      n_splits=5, epochs=30, batch_size=16, has_channel_dim_input=True, groups=None):
     
     """Train model with cross-validation, save best fold model, and train final model."""
     # X_train_all, y_train_all are full training set (before splitting into CV folds)
     # These should be tensors already on the correct device potentially.
 
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    # [eye-grouped rerun] no eye shared across folds when groups are given
+    skf = EyeGroupedKFold(groups, n_splits=n_splits, random_state=42) if groups is not None \
+        else StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     fold_metrics_list = []
     best_fold_f1 = -1
     best_fold_model_path = None
@@ -626,7 +629,7 @@ def train_model_with_cv(model_class, model_params, X_train_all, y_train_all,
         model.apply(reset_parameters) # Re-initialize weights for each fold
 
         optimizer = torch.optim.AdamW(model.parameters(), **optimizer_params)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5, verbose=False)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, factor=0.5)
         early_stopping = EarlyStopping(patience=10, verbose=False, path=fold_model_save_path)
 
         # _X_train_fold = torch.tensor(X_train_all_np[train_idx], dtype=torch.float32)
@@ -923,7 +926,7 @@ def train_model_with_cv(model_class, model_params, X_train_all, y_train_all,
         final_model.load_state_dict(torch.load(best_fold_model_path))
 
     optimizer_final = torch.optim.AdamW(final_model.parameters(), **optimizer_params)
-    scheduler_final = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_final, 'min', patience=5, factor=0.5, verbose=False)
+    scheduler_final = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_final, 'min', patience=5, factor=0.5)
     # For final model, we usually train for a fixed number of epochs or use early stopping against a validation set (if available)
     # Here, we'll use early stopping against the *test* set provided to the main caller (or a dedicated validation set if split earlier)
     # For now, let's train for a fixed number of epochs, or use epochs from best fold.
@@ -2710,7 +2713,7 @@ def grid_search_tuning(model_class, base_model_params, param_grid_list,
                        feature_dim_gs, # This is model_params['feature_dim']
                        has_channel_dim_gs,
                        n_splits_gs=3, epochs_gs=30, batch_size_gs=16, # Reduced for speed
-                       is_binary_mode=False, worker_results_file=None): # New parameter to handle binary/multiclass
+                       is_binary_mode=False, worker_results_file=None, groups=None): # New parameter to handle binary/multiclass
 
     logger.info(f"Starting grid search for {model_class.__name__}...")
     results = []
@@ -2745,7 +2748,8 @@ def grid_search_tuning(model_class, base_model_params, param_grid_list,
         logger.info(f"Grid Search - Combination {i+1}/{len(param_combinations)}: {params_combo}")
 
 
-        skf_gs = StratifiedKFold(n_splits=n_splits_gs, shuffle=True, random_state=42)
+        skf_gs = EyeGroupedKFold(groups, n_splits=n_splits_gs, random_state=42) if groups is not None \
+            else StratifiedKFold(n_splits=n_splits_gs, shuffle=True, random_state=42)  # [eye-grouped rerun]
         fold_f1_scores = []
 
         for fold, (train_idx, val_idx) in enumerate(skf_gs.split(X_train_gs_np, y_train_gs_np)):
@@ -2861,7 +2865,7 @@ def grid_search_worker_wrapper(
     X_train_gs_np, y_train_gs_np,
     optimizer_base_params, criterion, gs_report_dir, gs_subdirs,
     feature_dim_gs, has_channel_dim_gs, n_splits_gs, epochs_gs,
-    batch_size_gs, is_binary_mode):
+    batch_size_gs, is_binary_mode, groups=None):
     """
     Wrapper function that runs a chunk of the grid search on a single GPU.
     It saves results to a unique CSV file to avoid conflicts.
@@ -2911,7 +2915,8 @@ def grid_search_worker_wrapper(
             feature_dim_gs=feature_dim_gs,
             has_channel_dim_gs=has_channel_dim_gs,
             is_binary_mode=is_binary_mode,
-            worker_results_file=worker_results_path  # Pass the unique file path
+            worker_results_file=worker_results_path,  # Pass the unique file path
+            groups=groups
         )
         logger.info(f"Worker for device {device} finished.")
         
@@ -2919,9 +2924,11 @@ def grid_search_worker_wrapper(
         logger.error(f"Worker on device {device_id} failed: {e}")
 
 # --- 5. DATA PREPARATION ---
-def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_split=True, test_size=0.2, holdout_size=0.15, has_channel_dim_output=True, random_state=42, selected_features=None, test_data_path=None, resampling_method=None):
+def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_split=True, test_size=0.2, holdout_size=0.15, has_channel_dim_output=True, random_state=42, selected_features=None, test_data_path=None, resampling_method=None, group_by_eye=True):
     ''' Prepare data for deep learning model training and evaluation.
     This function handles three cases: mpod, breast_cancer, and scania_aps'''
+    groups_train = groups_test = groups_holdout = g_train_val = None  # [eye-grouped rerun]
+    group_by_eye = group_by_eye and dataset_name == "mpod"
     
     # --- Universal CSV Loading ---
     if not data_path:
@@ -3028,6 +3035,13 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
             # Generate all 180 possible feature names to create a complete reference DataFrame
             all_possible_column_names = [f"{metric}_Z{z+1}" for metric in all_feature_groups for z in range(num_features_per_group)]
             
+            # [eye-grouped rerun] eye ids + 4-class AREDS for grouped, stratified splitting
+            if group_by_eye:
+                if not {'Subject', 'Eye'}.issubset(df.columns):
+                    raise ValueError("group_by_eye=True needs 'Subject' and 'Eye' columns in the mpod CSV "
+                                     "(use the full mpod.csv, not a feature-only file).")
+                eye_groups_all = eye_ids_from_df(df)
+                y_strat4_all = df.iloc[:, -1].values
             # Create a reference DataFrame of just the feature columns with proper names
             feature_df = df.iloc[:, :len(all_possible_column_names)]
             feature_df.columns = all_possible_column_names
@@ -3089,9 +3103,16 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
         )
         if holdout_size > 0 and holdout_size < 1.0 :
             stratify_holdout = y_encoded if stratify_split else None
-            X_train_val_orig, X_holdout_orig, y_train_val_encoded, y_holdout_encoded = train_test_split(
-                X_raw, y_encoded, test_size=holdout_size, random_state=random_state, stratify=stratify_holdout
-            )
+            if group_by_eye:
+                X_train_val_orig, X_holdout_orig, y_train_val_encoded, y_holdout_encoded, g_train_val, groups_holdout = \
+                    grouped_train_test_split(X_raw, y_encoded, eye_groups_all, test_size=holdout_size,
+                                             random_state=random_state, stratify_on=y_strat4_all)
+                s4_train_val = y_strat4_all[np.isin(eye_groups_all, g_train_val)]
+                assert_no_eye_overlap(g_train_val, groups_holdout, "DL holdout split")
+            else:
+                X_train_val_orig, X_holdout_orig, y_train_val_encoded, y_holdout_encoded = train_test_split(
+                    X_raw, y_encoded, test_size=holdout_size, random_state=random_state, stratify=stratify_holdout
+                )
             logger.info(f"Split data: Train_Val set size: {X_train_val_orig.shape[0]}, Holdout set size: {X_holdout_orig.shape[0]}")
             logger.info(f"Holdout class distribution: {Counter(y_holdout_encoded)}")
         else:
@@ -3106,9 +3127,16 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
         actual_test_size = test_size
         if X_train_val_orig.shape[0] > 1 and actual_test_size > 0 and actual_test_size < 1.0:
             stratify_train_test = y_train_val_encoded if stratify_split else None
-            X_train_orig, X_test_orig, y_train_encoded, y_test_encoded = train_test_split(
-                X_train_val_orig, y_train_val_encoded, test_size=actual_test_size, random_state=random_state, stratify=stratify_train_test
-            )
+            if group_by_eye:
+                X_train_orig, X_test_orig, y_train_encoded, y_test_encoded, groups_train, groups_test = \
+                    grouped_train_test_split(X_train_val_orig, y_train_val_encoded, g_train_val,
+                                             test_size=actual_test_size, random_state=random_state,
+                                             stratify_on=s4_train_val)
+                assert_no_eye_overlap(groups_train, groups_test, "DL internal validation split")
+            else:
+                X_train_orig, X_test_orig, y_train_encoded, y_test_encoded = train_test_split(
+                    X_train_val_orig, y_train_val_encoded, test_size=actual_test_size, random_state=random_state, stratify=stratify_train_test
+                )
             logger.info(f"Split Train_Val: Train set size: {X_train_orig.shape[0]}, Test set size: {X_test_orig.shape[0]}")
         else:
             X_train_orig, y_train_encoded = X_train_val_orig, y_train_val_encoded
@@ -3170,6 +3198,7 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
 
         # Metadata and objects
         'feature_names': final_feature_names, # feature_names,
+        'groups_train': groups_train, 'groups_test': groups_test, 'groups_holdout': groups_holdout,  # [eye-grouped rerun]
         'scaler': scaler,
         'label_encoder': le,
         'is_binary_mode': is_binary,
@@ -3638,10 +3667,11 @@ def main(args):
         stratify_split=args.stratify_split,
         test_size=args.test_split_ratio,
         holdout_size=args.holdout_split_ratio,
-        random_state=args.seed,
+        random_state=args.split_seed,  # [eye-grouped rerun] split seed fixed, independent of model seed
         selected_features=args.select_features,
         test_data_path=args.test_data_path,
-        resampling_method=args.resampling_method 
+        resampling_method=args.resampling_method,
+        group_by_eye=not args.no_eye_grouping
     )
     # ... (Saving holdout data and scaler/encoder)
     if data_dict.get('X_holdout_np_orig') is not None and data_dict['X_holdout_np_orig'].shape[0] > 0:
@@ -3832,7 +3862,7 @@ def main(args):
                                 current_optimizer_params, criterion, report_dir, subdirs,
                                 feature_dim, has_channel_dim_model_input,
                                 args.cv_splits_tuning, args.epochs_tuning, args.batch_size,
-                                args.binary_classification
+                                args.binary_classification, data_dict.get('groups_train')
                             )
                         )
                         processes.append(p)
@@ -3883,7 +3913,8 @@ def main(args):
                         n_splits_gs=args.cv_splits_tuning, epochs_gs=args.epochs_tuning,
                         batch_size_gs=args.batch_size,
                         feature_dim_gs=feature_dim, has_channel_dim_gs=has_channel_dim_model_input,
-                        is_binary_mode=args.binary_classification
+                        is_binary_mode=args.binary_classification,
+                        groups=data_dict.get('groups_train')
                     )
                     logger.info(f"Tuning for {model_type}: Best CV F1={best_tuning_score:.4f}")
                     current_model_specific_params.update(tuned_model_hparams)
@@ -3913,7 +3944,8 @@ def main(args):
             criterion=criterion, device=device, model_name_base=model_type, report_dir=report_dir, subdirs=subdirs,
             n_splits=args.cv_splits_training, epochs=args.epochs_training, batch_size=args.batch_size,
             has_channel_dim_input=has_channel_dim_model_input,
-            is_binary=data_dict['is_binary_mode'], num_class=num_classes
+            is_binary=data_dict['is_binary_mode'], num_class=num_classes,
+            groups=data_dict.get('groups_train')
         )
         
         all_trained_model_paths[model_type] = {
@@ -4162,7 +4194,9 @@ if __name__ == '__main__':
     
     parser.add_argument("--report_base_dir", type=str, default="reports/dl_pipeline", help="Base directory to save reports")
     parser.add_argument("--experiment_name", type=str, default=None, help="Specific name for this experiment run (default: timestamped)")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for model initialisation/training")
+    parser.add_argument("--split_seed", type=int, default=42, help="Seed for data splits (keep fixed at 42 so all runs share one split)")
+    parser.add_argument("--no_eye_grouping", action="store_true", help="Disable eye-grouped splitting (NOT recommended; reproduces the old row-level split)")
     parser.add_argument("--use_gpu", action="store_true", help="Use GPU if available")
 
     # Data params

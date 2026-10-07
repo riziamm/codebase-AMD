@@ -18,6 +18,7 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 import xgboost as xgb
 from datetime import datetime
 from sklearn.model_selection import train_test_split
+from .eye_split import eye_ids_from_df, grouped_train_test_split, assert_no_eye_overlap
 import logging
 logging.getLogger('shap').setLevel(logging.WARNING)
 import traceback
@@ -90,6 +91,11 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
     # Load data
     print(f"Loading data from {data_path}...")
     data = pd.read_csv(data_path)
+    # [eye-grouped rerun] capture eye ids and 4-class AREDS BEFORE any column subsetting
+    eye_groups = eye_ids_from_df(data) if {'Subject', 'Eye'}.issubset(data.columns) else None
+    y_strat4 = data.iloc[:, -1].values
+    if eye_groups is None:
+        print("WARNING: 'Subject'/'Eye' columns not found -> falling back to ROW-level split (not eye-grouped).")
     
     # Select features if specified
     if selected_features is not None:
@@ -145,7 +151,13 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
     
     
     # Split data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=42, stratify=y)
+    if eye_groups is not None:
+        assert len(eye_groups) == len(X), "Row count changed during prepare_data; eye ids misaligned."
+        X_train, X_test, y_train, y_test, g_train, g_test = grouped_train_test_split(
+            X, y, eye_groups, test_size=0.15, random_state=42, stratify_on=y_strat4)
+        assert_no_eye_overlap(g_train, g_test, "ML internal validation split")
+    else:
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=42, stratify=y)
     
     # Save test data for later evaluation
     save_test_data(X_test, y_test, le, data_path, report_dir, feature_names)

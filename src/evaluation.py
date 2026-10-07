@@ -316,7 +316,6 @@ def evaluate_saved_model(model_path,
 
     print(f"\n--- Evaluating {model_path.stem} on {eval_data_source} data ---")
 
-  s
     y_pred = model.predict(X_eval)
 
     # Calculate metrics
@@ -341,6 +340,11 @@ def evaluate_saved_model(model_path,
                 roc_auc_eval = roc_auc_score(y_eval, y_proba_eval, multi_class='ovr', average='macro')
             except Exception as e_auc_mc:
                 print(f"Could not calculate multiclass ROC AUC: {e_auc_mc}")
+
+    # [eye-grouped rerun] export per-row predictions for src/evaluate_all.py
+    if report_dir and hasattr(model, 'predict_proba'):
+        export_predictions(report_dir, model_path, model_path.stem, test_data_path or holdout_data_path,
+                           y_eval, y_pred, model.predict_proba(X_eval))
 
     # Print results
     print(f"Evaluation Results ({eval_data_source}):") #
@@ -593,6 +597,26 @@ def check_and_balance_test_data(test_data_path, min_samples_per_class=None, bala
     
     return X_balanced, y_balanced
 
+def export_predictions(report_dir, model_path, model_name, eval_path, y_true, y_pred, y_proba):
+    """[eye-grouped rerun] Save y_true / y_prob / y_pred (no features) for src/evaluate_all.py.
+    File: <report_dir>/predictions/<batch>__<experiment>__<model>__<evalfile>.csv
+    Row order = order of the evaluation file (test_test.pkl keeps test_mpod.csv order)."""
+    try:
+        mp = Path(model_path)
+        tag = f"{mp.parent.parent.parent.name}__{mp.parent.parent.name}__{str(model_name).replace(' ', '_')}"
+        stem = Path(str(eval_path)).stem if eval_path else "eval"
+        out_dir = Path(report_dir) / "predictions"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        y_proba = np.asarray(y_proba)
+        prob = y_proba[:, 1] if y_proba.ndim == 2 and y_proba.shape[1] == 2 else y_proba.max(axis=1)
+        dst = out_dir / f"{tag}__{stem}.csv"
+        pd.DataFrame({"y_true": np.asarray(y_true).astype(int), "y_prob": prob,
+                      "y_pred": np.asarray(y_pred).astype(int)}).to_csv(dst, index=False)
+        print(f"  Saved per-row predictions: {dst}")
+    except Exception as e:
+        print(f"  Warning: could not export predictions for {model_name}: {e}")
+
+
 def compare_models(model_paths,
                    test_data_path=None,
                    holdout_data_path=None, # This argument is kept for signature consistency
@@ -664,6 +688,9 @@ def compare_models(model_paths,
                 print(f"  Warning: Could not calculate AUC/AP scores for {model_name}: {e_auc}")
 
         # Store all results for this model
+        if report_dir and hasattr(model, 'predict_proba'):  # [eye-grouped rerun]
+            export_predictions(report_dir, model_path, model_name, eval_path, y_eval, y_pred, model.predict_proba(X_eval))
+
         final_results['models'][model_name] = {
             'accuracy': accuracy, 'f1_score': f1, 'roc_auc': roc_auc,
             'average_precision': avg_precision, 'classification_report': report_dict,

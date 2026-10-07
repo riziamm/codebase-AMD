@@ -22,6 +22,7 @@ import json
 import xgboost as xgb
 from scipy.spatial.distance import minkowski
 from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold, LeaveOneOut, RepeatedStratifiedKFold
+from .eye_split import eye_ids_from_df, grouped_train_test_split, EyeGroupedKFold, assert_no_eye_overlap
 from sklearn.preprocessing import StandardScaler, LabelEncoder, MinMaxScaler, RobustScaler,PolynomialFeatures, FunctionTransformer
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier, GradientBoostingClassifier,StackingClassifier
 import xgboost as xgb
@@ -49,7 +50,7 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger('shap').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-from report_generation import save_figure
+from .reporting.utils import save_figure  # [fix] was a missing top-level module
 
 
 def set_seeds(seed=42):
@@ -946,7 +947,7 @@ def log_grid_search_results(model_name, best_params, train_score, test_score, ga
         print(f"Error logging results: {e}")
 
 
-def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, report_dir=None, sampling_method='none'): 
+def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, report_dir=None, sampling_method='none', cv_splitter=None): 
     """
     Perform grid search for hyperparameter tuning with focus on preventing overfitting
     
@@ -980,6 +981,9 @@ def grid_search_model(model, param_grid, X_train, y_train, model_name, cv=3, rep
     else:  # Class is large enough for normal CV
         print(f"Using standard {cv}-fold cross-validation")
         stratified_cv = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
+    if cv_splitter is not None:  # [eye-grouped rerun] overrides LOO/StratifiedKFold above
+        stratified_cv = cv_splitter
+        print(f"Using eye-grouped {cv_splitter.get_n_splits(X_train, y_train)}-fold CV (no eye shared across folds)")
 
     n_jobs =  1
     print(f"Parameter grid: {param_grid}")
@@ -3087,7 +3091,7 @@ def create_feature_transformations_transform(X, params, feature_names=None, num_
     return X_transformed
 
 
-def evaluate_model_with_cv(model, X, y, model_name, n_splits=3, random_state=42):
+def evaluate_model_with_cv(model, X, y, model_name, n_splits=3, random_state=42, groups=None):
     """
     Evaluate model using stratified k-fold cross-validation with automatic fold adjustment
     
@@ -3130,6 +3134,9 @@ def evaluate_model_with_cv(model, X, y, model_name, n_splits=3, random_state=42)
     else: 
         cv_strategy = StratifiedKFold(n_splits=original_cv_splits, shuffle=True, random_state=random_state)
         print(f"Using {original_cv_splits} folds for CV")
+    if groups is not None:  # [eye-grouped rerun]
+        cv_strategy = EyeGroupedKFold(groups, n_splits=n_splits, random_state=random_state)
+        print(f"Using eye-grouped {cv_strategy.get_n_splits(X, y)}-fold CV")
     
  
     is_binary_cv = len(np.unique(y)) == 2
@@ -3273,6 +3280,12 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
     set_seeds() 
     print(f"Loading data from {data_path}...") 
     data = pd.read_csv(data_path) 
+    # [eye-grouped rerun] capture eye ids and 4-class AREDS BEFORE any column subsetting
+    eye_groups = eye_ids_from_df(data) if {'Subject', 'Eye'}.issubset(data.columns) else None
+    y_strat4 = data.iloc[:, -1].values
+    g_train, s4_train = None, None
+    if eye_groups is None:
+        print("WARNING: 'Subject'/'Eye' columns not found -> falling back to ROW-level split (not eye-grouped).")
 
     if selected_features is not None: 
         data = data[selected_features + [data.columns[-1]]] 
@@ -3293,7 +3306,14 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
         transform_features=transform_features 
     )
     
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=42, stratify=y) 
+    if eye_groups is not None:
+        assert len(eye_groups) == len(X), "Row count changed during prepare_data; eye ids misaligned."
+        X_train, X_test, y_train, y_test, g_train, g_test = grouped_train_test_split(
+            X, y, eye_groups, test_size=0.15, random_state=42, stratify_on=y_strat4)
+        assert_no_eye_overlap(g_train, g_test, "ML internal validation split")
+        s4_train = y_strat4[np.isin(eye_groups, g_train)]
+    else:
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=42, stratify=y) 
     y_train_original = y_train.copy() 
     print("Printing split statistics to verify stratified balance \n")
     print(f"Training set class distribution: {Counter(y_train)}") 
@@ -3346,7 +3366,8 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
         for name, model_instance in base_models.items(): 
             if name in param_grids: 
                 model_grid = param_grids[name] 
-                best_model_tuned, best_params = grid_search_model(model_instance, model_grid, X_train, y_train, name, cv=5, report_dir=report_dir, sampling_method=sampling_method) 
+                _cv_split = EyeGroupedKFold(g_train, n_splits=5, random_state=42, stratify_on=s4_train) if g_train is not None else None
+                best_model_tuned, best_params = grid_search_model(model_instance, model_grid, X_train, y_train, name, cv=5, report_dir=report_dir, sampling_method=sampling_method, cv_splitter=_cv_split) 
                 tuned_models[name] = best_model_tuned 
                 print(f"Best parameters for {name}: {best_params}") 
             else:
@@ -3422,7 +3443,7 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
 
     cv_results_data_run = None
     if best_model:
-        cv_results_data_run = evaluate_model_with_cv(best_model, X, y, best_model_name, n_splits=10, random_state=42) 
+        cv_results_data_run = evaluate_model_with_cv(best_model, X, y, best_model_name, n_splits=10, random_state=42, groups=eye_groups) 
     
     best_model_f1_run = f1_scores_map.get(best_model_name, 0.0) if best_model_name else 0.0 
 
