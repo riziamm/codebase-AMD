@@ -1,0 +1,2 @@
+model_name,accuracy,f1_score,precision,recall,auc,epoch,val_loss,timestamp
+Transformer_fold3,0.5,0.4615384615384615,0.6,0.375,0.47395833333333337,0,0.5997353494167328,2026-10-07 20:44:57
