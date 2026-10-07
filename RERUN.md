@@ -85,6 +85,19 @@ git status                            # only share/ should appear
 git add share/ && git commit -m "results: eyegrouped rerun" && git push origin eye-grouped-rerun
 ```
 
+
+## ▶ Decisive test: repeated nested eye-grouped CV + permutation test
+Uses all 58 eyes (dev + holdout files together). Models: `lr`, `rf`, `hybrid_zone` (zone-token transformer + zone CNN, ~3k params), `hybrid_orig` (paper's parallel hybrid, ~600k params).
+```bash
+nohup bash scripts/6_rcv_pilot.sh > rcv_pilot.log 2>&1 &     # ~5-10 min; wait for 7 PASS lines
+tail -n 20 rcv_pilot.log
+nohup bash scripts/7_rcv_full.sh > reruns_eyegrouped/logs/rcv_full.log 2>&1 &   # resumable: rerun the same line if interrupted
+grep -a "DONE\|==" reruns_eyegrouped/logs/rcv_full.log
+bash scripts/5_package_share.sh      # then git add share/ && git commit && git push
+```
+Outputs: `reruns_eyegrouped/repeated_cv/{eye,subject}/summary.csv`, `paired.csv`, `REPORT.md`. `eye` = primary (matches the paper); `subject` = conservative sensitivity analysis (fellow eyes never split).
+Verdict rule per model: **SIGNAL** if permutation p_above < 0.05 and AUC >= 0.65; **BELOW CHANCE** if p_below < 0.05; otherwise **NO DETECTABLE SIGNAL**.
+
 ## 1. Frozen split (already done; repeat here only if needed)
 
 ```bash

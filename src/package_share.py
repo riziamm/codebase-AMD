@@ -39,7 +39,16 @@ def strip_json(obj):
     return obj
 
 
+OOF_COLS = {"cv_rep", "row_index", "eye_code", "y_true", "y_prob"}
+
+
 def csv_ok(path, pred_mode=False):
+    if Path(path).name == "oof.csv":  # repeated-CV out-of-fold scores: pseudonymous eye_code, no features
+        try:
+            cols = set(pd.read_csv(path, nrows=5).columns)
+        except Exception as e:
+            return False, f"unreadable ({e})"
+        return (cols <= OOF_COLS, "oof.csv has unexpected columns" if not cols <= OOF_COLS else "")
     try:
         df = pd.read_csv(path, nrows=500)
     except Exception as e:
@@ -129,9 +138,15 @@ def main():
         for f in dl.glob(pat):
             P.add(f, dl, "dl")
 
+    rcv = root / "repeated_cv"
+    for pat in ("*/summary.csv", "*/paired.csv", "*/REPORT.md", "*/*/summary.json", "*/*/null.csv"):
+        for f in rcv.glob(pat):
+            P.add(f, rcv, "repeated_cv")
     if a.include_preds:
         for f in (root / "preds_holdout").glob("*.csv"):
             P.add(f, root / "preds_holdout", "preds_holdout")
+        for f in rcv.glob("*/*/oof.csv"):
+            P.add(f, rcv, "repeated_cv")
 
     man = Path(a.out) / "MANIFEST.txt"
     lines = [f"files copied: {len(P.copied)}   total size: {P.bytes/1e6:.1f} MB   include_preds={a.include_preds}"]
