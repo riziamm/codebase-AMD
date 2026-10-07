@@ -113,29 +113,29 @@ done
 
 ## 3. DL (binary)
 
-Use the full `data/mpod.csv`, which must include the `Subject`/`Eye` columns. The DL code builds the identical eye-grouped holdout itself. Copy epochs, CV splits and batch size from the original run's `experiment_config.json`, so that the only change is the grouping.
+DL reads the **same frozen files as ML**: `--data_path reruns_eyegrouped/split/train_mpod.csv --test_data_path reruns_eyegrouped/split/test_mpod.csv` (already set in `scripts/3_run_dl.sh`). Holdout and internal-validation eyes are identical to ML. Copy epochs, CV splits and batch size from the original run's `experiment_config.json`, so that the only change is the grouping.
 
 ```bash
 # Main comparison, tuned (Table A3 / Fig A2); SHAP on this seed-42 run (Figs 4, 6)
-python dl_pipeline_gen.py --dataset mpod --data_path data/mpod.csv \
+python dl_pipeline_gen.py --dataset mpod --data_path reruns_eyegrouped/split/train_mpod.csv --test_data_path reruns_eyegrouped/split/test_mpod.csv \
   --experiment_name EG_bin_all_tuned_s42 --tune_hyperparameters --use_gpu \
   --seed 42 --split_seed 42 --report_base_dir reruns_eyegrouped/dl
 
 # Stability of the hybrid: same procedure, model seeds 0-4, same split (report mean ± SD)
 for S in 0 1 2 3 4; do
-  python dl_pipeline_gen.py --dataset mpod --data_path data/mpod.csv \
+  python dl_pipeline_gen.py --dataset mpod --data_path reruns_eyegrouped/split/train_mpod.csv --test_data_path reruns_eyegrouped/split/test_mpod.csv \
     --experiment_name EG_bin_hybrid_tuned_s$S --models_to_run CNNTransformer_parallel \
     --tune_hyperparameters --use_gpu --seed $S --split_seed 42 --report_base_dir reruns_eyegrouped/dl
 done
 
 # Exclusion experiments (Fig 5, A4-A6). CSV feature order: 0 mean,1 median,2 std,3 iqr,4 idr,5 skew,6 kurt,7 Del,8 Amp
-python dl_pipeline_gen.py --dataset mpod --data_path data/mpod.csv --models_to_run CNNTransformer_parallel \
+python dl_pipeline_gen.py --dataset mpod --data_path reruns_eyegrouped/split/train_mpod.csv --test_data_path reruns_eyegrouped/split/test_mpod.csv --models_to_run CNNTransformer_parallel \
   --tune_hyperparameters --use_gpu --seed 42 --report_base_dir reruns_eyegrouped/dl \
   --experiment_name EG_bin_hybrid_no_mean --select_features 1 2 3 4 5 6 7 8
-python dl_pipeline_gen.py --dataset mpod --data_path data/mpod.csv --models_to_run CNNTransformer_parallel \
+python dl_pipeline_gen.py --dataset mpod --data_path reruns_eyegrouped/split/train_mpod.csv --test_data_path reruns_eyegrouped/split/test_mpod.csv --models_to_run CNNTransformer_parallel \
   --tune_hyperparameters --use_gpu --seed 42 --report_base_dir reruns_eyegrouped/dl \
   --experiment_name EG_bin_hybrid_no_mean_skew --select_features 1 2 3 4 6 7 8
-python dl_pipeline_gen.py --dataset mpod --data_path data/mpod.csv --models_to_run CNNTransformer_parallel \
+python dl_pipeline_gen.py --dataset mpod --data_path reruns_eyegrouped/split/train_mpod.csv --test_data_path reruns_eyegrouped/split/test_mpod.csv --models_to_run CNNTransformer_parallel \
   --tune_hyperparameters --use_gpu --seed 42 --report_base_dir reruns_eyegrouped/dl \
   --experiment_name EG_bin_hybrid_no_mean_amp --select_features 1 2 3 4 5 6 7
 ```

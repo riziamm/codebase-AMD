@@ -18,7 +18,8 @@ echo "== holdout + ML eval"
 bash scripts/1_create_holdout.sh > "$ROOT"/logs/holdout.log 2>&1
 bash scripts/2_eval_ml_holdout.sh > "$ROOT"/logs/ml_eval.log 2>&1
 echo "== DL (2 epochs, no tuning)"
-python dl_pipeline_gen.py --dataset mpod --data_path data/mpod.csv --report_base_dir "$ROOT"/dl \
+python dl_pipeline_gen.py --dataset mpod --data_path reruns_eyegrouped/split/train_mpod.csv \
+  --test_data_path reruns_eyegrouped/split/test_mpod.csv --report_base_dir "$ROOT"/dl \
   --experiment_name EG_bin_pilot --seed 42 --split_seed 42 --use_gpu \
   --models_to_run CNN CNNTransformer_parallel --epochs_training 2 --shap_num_samples 5 > "$ROOT"/logs/dl.log 2>&1
 echo "== collect + evaluate"
@@ -33,7 +34,7 @@ ok "ML all models saved (8 per exp)" "[ \$(ls $ROOT/ml_batches/*/experiment_1/mo
 ok "ML AUC not zero in summary"  "python -c \"import json,glob,math;v=[m['roc_auc_score'] for f in glob.glob('$ROOT/ml_batches/*/*/metrics/all_model_metrics.json') for m in json.load(open(f))['models'].values()];assert v and all(x>0 for x in v if not math.isnan(x))\""
 ok "ML SHAP figures (RF + LR)"   "ls $ROOT/ml_batches/*/experiment_1/figures | grep -q 'Random Forest_shap' && ls $ROOT/ml_batches/*/experiment_1/figures | grep -q 'Logistic Regression_shap'"
 ok "ML holdout predictions"      "[ \$(ls $ROOT/ml_eval/predictions/*.csv 2>/dev/null | wc -l) -ge 16 ]"
-ok "DL eye-grouped holdout"      "grep -q 'DL holdout split: OK' $ROOT/logs/dl.log"
+ok "DL uses frozen split files"  "grep -q 'DL holdout split (frozen files): OK' $ROOT/logs/dl.log"
 ok "DL holdout predictions"      "[ \$(ls $ROOT/dl/EG_bin_pilot/post_analysis/metrics/*holdout_eval_classification_report.json 2>/dev/null | wc -l) -ge 2 ]"
 ok "DL SHAP circular maps"       "find $ROOT/dl -name '*circ*.png' | grep -q ."
 ok "Final table (AUC+sens+CI)"   "[ -s $ROOT/results_holdout.csv ]"

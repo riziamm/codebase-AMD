@@ -2928,6 +2928,7 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
     ''' Prepare data for deep learning model training and evaluation.
     This function handles three cases: mpod, breast_cancer, and scania_aps'''
     groups_train = groups_test = groups_holdout = g_train_val = None  # [eye-grouped rerun]
+    presplit_ho_mask = None  # [frozen split] True for rows that came from test_data_path
     group_by_eye = group_by_eye and dataset_name == "mpod"
     
     # --- Universal CSV Loading ---
@@ -3004,8 +3005,18 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
 
     else:
         # Performs its own combined train/test/holdout split from a single csv data file.
-        logger.info(f"Applying standard split logic. Loading data from {data_path} for dataset '{dataset_name}'")
-        df = pd.read_csv(data_path)
+        if dataset_name == "mpod" and test_data_path:
+            # [frozen split] use the SAME dev/holdout files as the ML pipeline (from src/make_split.py)
+            logger.info(f"Using frozen split: development={data_path}, holdout={test_data_path}")
+            _df_dev = pd.read_csv(data_path)
+            _df_ho = pd.read_csv(test_data_path)
+            if list(_df_dev.columns) != list(_df_ho.columns):
+                raise ValueError("Development and holdout CSVs have different columns.")
+            df = pd.concat([_df_dev, _df_ho], ignore_index=True)
+            presplit_ho_mask = np.r_[np.zeros(len(_df_dev), bool), np.ones(len(_df_ho), bool)]
+        else:
+            logger.info(f"Applying standard split logic. Loading data from {data_path} for dataset '{dataset_name}'")
+            df = pd.read_csv(data_path)
         logger.info(f"Data loaded: {df.shape[0]} rows, {df.shape[1]} columns")
         if df.shape[1] <= 1:
             raise ValueError("Data must have at least one feature column and one target column.")
@@ -3101,7 +3112,18 @@ def prepare_data_for_dl(data_path, is_binary, dataset_name="mpod", stratify_spli
             np.array([]).reshape(0, X_raw.shape[1]), np.array([]).reshape(0, X_raw.shape[1]),
             np.array([], dtype=y_encoded.dtype), np.array([], dtype=y_encoded.dtype)
         )
-        if holdout_size > 0 and holdout_size < 1.0 :
+        if presplit_ho_mask is not None:
+            # [frozen split] holdout = rows of test_data_path, in file order (= split_manifest order)
+            m = presplit_ho_mask
+            X_train_val_orig, X_holdout_orig = X_raw[~m], X_raw[m]
+            y_train_val_encoded, y_holdout_encoded = y_encoded[~m], y_encoded[m]
+            if group_by_eye:
+                g_train_val, groups_holdout = eye_groups_all[~m], eye_groups_all[m]
+                s4_train_val = y_strat4_all[~m]
+                assert_no_eye_overlap(g_train_val, groups_holdout, "DL holdout split (frozen files)")
+            logger.info(f"Frozen split: Train_Val {X_train_val_orig.shape[0]} rows, Holdout {X_holdout_orig.shape[0]} rows")
+            logger.info(f"Holdout class distribution: {Counter(y_holdout_encoded)}")
+        elif holdout_size > 0 and holdout_size < 1.0 :
             stratify_holdout = y_encoded if stratify_split else None
             if group_by_eye:
                 X_train_val_orig, X_holdout_orig, y_train_val_encoded, y_holdout_encoded, g_train_val, groups_holdout = \

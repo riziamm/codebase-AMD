@@ -13,9 +13,11 @@ CV_TUNE=3
 BATCH=16
 # --------------------------------------------------------------------------------
 
-DATA="data/mpod.csv"          # full file incl. Subject/Eye columns
+# [frozen split] same development/holdout files as the ML pipeline (made by src/make_split.py)
+DEV="reruns_eyegrouped/split/train_mpod.csv"
+HOLDOUT="reruns_eyegrouped/split/test_mpod.csv"
 OUT="$ROOT/dl"
-COMMON="--dataset mpod --data_path $DATA --report_base_dir $OUT --use_gpu --tune_hyperparameters \
+COMMON="--dataset mpod --data_path $DEV --test_data_path $HOLDOUT --report_base_dir $OUT --use_gpu --tune_hyperparameters \
  --split_seed 42 --epochs_training $EPOCHS_TRAIN --epochs_tuning $EPOCHS_TUNE \
  --cv_splits_training $CV_TRAIN --cv_splits_tuning $CV_TUNE --batch_size $BATCH"
 
