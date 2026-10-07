@@ -1,3 +1,31 @@
+
+conda activate ardes
+Copy only the aggregate results into share/:
+bash
+```
+<!-- mkdir -p share/ml_tier1 -->
+cp reruns_eyegrouped/results_holdout*.csv share/ml_tier1/
+# + SHAP figures (.png) and batch summary CSVs
+```
+
+RUN experiment ML: from step 2:
+
+```bash
+nohup python -m src.main --mode batch \
+  --data_path reruns_eyegrouped/split/train_mpod.csv \
+  --config_file configs/rerun_tier1_ml_binary-3on.json \
+  --report_dir reruns_eyegrouped/ml_batches \
+  > reruns_eyegrouped/logs/ml_from3.log 2>&1 &
+```
+CHECK PROGRESS---
+tail -f reruns_eyegrouped/logs/ml_from3.log    
+ps aux | grep "src.main" | grep -v grep # is it still running?
+
+RESTART from specific experiment:
+python -c "import json;c=json.load(open('configs/rerun_tier1_ml_binary.json'));json.dump(c[2:],open('configs/ml_from3.json','w'),indent=1);print(len(c[2:]),'experiments')"
+
+
+
 # Eye-grouped rerun (branch `eye-grouped-rerun`)
 
 The original code is preserved on `main` and on the tag `v1-original-submission`. This branch changes **one thing scientifically**: every split groups by eye, so both repeat sessions of an eye always land in the same partition and the same CV fold. Everything else (models, grids, preprocessing, SHAP) is unchanged.
