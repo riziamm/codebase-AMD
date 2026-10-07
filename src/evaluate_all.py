@@ -86,6 +86,8 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--pairs", nargs="*", default=[],
                     help="modelA:modelB pairs for paired dAUC (A minus B)")
+    ap.add_argument("--ref_pattern", default=None,
+                    help="substring identifying ONE reference model; adds paired dAUC (ref minus every other model)")
     a = ap.parse_args()
 
     preds = load_preds(a.pred_dir, a.manifest)
@@ -113,7 +115,14 @@ def main():
 
     # paired dAUC
     pair_rows = []
-    for pair in a.pairs:
+    pairs = list(a.pairs)
+    if a.ref_pattern:
+        hits = [n for n in preds if a.ref_pattern in n]
+        if len(hits) != 1:
+            raise SystemExit(f"--ref_pattern '{a.ref_pattern}' matched {len(hits)} models: {hits[:5]}")
+        pairs += [f"{hits[0]}:{n}" for n in preds if n != hits[0]]
+        print(f"[paired dAUC] reference = {hits[0]}  ({len(pairs)} comparisons)")
+    for pair in pairs:
         A, B = pair.split(":")
         da, db = preds[A], preds[B]
         m = da[["row_index", "eye_id", "y_true", "y_prob"]].merge(

@@ -12,6 +12,7 @@ python -m src.collect_preds \
 
 python src/evaluate_all.py --pred_dir "$PRED" --n_boot "${NBOOT:-2000}" \
   --manifest reruns_eyegrouped/split/split_manifest.csv \
+  --ref_pattern "${REF:-EG_bin_all_tuned_s42__CNNTransformer_parallel}" \
   --out $ROOT/results_holdout.csv
 
 if [ "$ROOT" = "reruns_eyegrouped" ]; then

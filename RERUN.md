@@ -71,6 +71,17 @@ tail -n 20 reruns_pilot.log        # wait for the CHECKLIST; all lines must say 
 ```
 Outputs go to `reruns_pilot/` (git-ignored, not for the paper). Delete it after: `rm -rf reruns_pilot`.
 
+
+## ▶ After all runs finish (post-analysis package)
+```bash
+bash scripts/1_create_holdout.sh      # ML holdout files
+bash scripts/2_eval_ml_holdout.sh     # ML holdout evaluation
+bash scripts/4_collect_evaluate.sh    # final table (AUC, sens, spec + CIs; paired dAUC vs hybrid)
+bash scripts/5_package_share.sh       # aggregates only -> share/run_<date>/   (PREDS=1 adds 18-row y_true/y_prob files)
+git status                            # only share/ should appear
+git add share/ && git commit -m "results: eyegrouped rerun" && git push origin eye-grouped-rerun
+```
+
 ## 1. Frozen split (already done; repeat here only if needed)
 
 ```bash
