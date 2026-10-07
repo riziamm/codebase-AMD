@@ -29,7 +29,7 @@ workflow_eval_v3.sh
 *.h5
 *.log
 
-# allowed: aggregate results you choose to share
+# allowed: aggregate results to share
 !share/
 !share/**
 reruns_pilot/

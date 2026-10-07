@@ -21,6 +21,9 @@ CHECK PROGRESS---
 tail -f reruns_eyegrouped/logs/ml_from3.log    
 ps aux | grep "src.main" | grep -v grep # is it still running?
 
+KILL any runs
+pkill -f "src.main --mode batch"
+
 RESTART from specific experiment:
 python -c "import json;c=json.load(open('configs/rerun_tier1_ml_binary.json'));json.dump(c[2:],open('configs/ml_from3.json','w'),indent=1);print(len(c[2:]),'experiments')"
 
