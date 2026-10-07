@@ -3,6 +3,7 @@
 #   nohup bash scripts/3_run_dl.sh > $ROOT/logs/dl_all.log 2>&1 &
 # Re-running skips any experiment whose folder already has results.
 set -u
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"   # one GPU (RTX A6000) for every DL run: reproducible, avoids multi-GPU worker path
 ROOT="${ROOT:-reruns_eyegrouped}"   # output root (pilot uses ROOT=reruns_pilot)
 
 # ---- EDIT: copy these from the ORIGINAL hybrid run's experiment_config.json ----

@@ -3,6 +3,7 @@
 # Run:  nohup bash scripts/0_pilot.sh > reruns_pilot.log 2>&1 &
 # Then: tail -n 40 reruns_pilot.log      (look at the CHECKLIST at the end)
 set -u
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"   # one GPU (RTX A6000) for every DL run: reproducible, avoids multi-GPU worker path
 export ROOT=reruns_pilot
 rm -rf "$ROOT"; mkdir -p "$ROOT"/logs
 [ -f reruns_eyegrouped/split/train_mpod.csv ] || { echo "ERROR: run src/make_split.py first"; exit 1; }
