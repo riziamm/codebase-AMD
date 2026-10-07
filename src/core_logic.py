@@ -168,11 +168,18 @@ def sort_feature_values(X, num_features, values_per_feature=20, ascending_featur
     # Reshape back to original shape
     return X_reshaped.reshape(X_copy.shape[0], -1)
 
+# [naming fix] single source of truth for feature-group names; order = CSV column blocks
+BASE_METRIC_NAMES = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
+
+
 def prepare_data(df, num_features=9, values_per_feature=20,
                  normalization='standard', is_binary=True,
-                 preserve_zones=True, feature_indices=None, sort_features='none', transform_features=False):
+                 preserve_zones=True, feature_indices=None, sort_features='none', transform_features=False,
+                 name_indices=None):
     """
     Prepare data for modeling
+    name_indices: original feature-group indices (0-8) of columns that were ALREADY sliced out of the
+                  dataframe by the caller; used only to name features correctly.
     """
     print(f"DEBUG: Inside prepare_data. feature_indices = {feature_indices}, num_features (default/passed) = {num_features}")
     print(f"DEBUG: Input df shape: {df.shape}") # Check input shape early
@@ -365,12 +372,16 @@ def prepare_data(df, num_features=9, values_per_feature=20,
 
 
     #   Feature Name Generation  
-    base_metric_names = ['mean', 'median', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
+    base_metric_names = BASE_METRIC_NAMES
     actual_group_metrics = []
+    _name_idx = feature_indices if feature_indices is not None else name_indices
+    if _name_idx is not None and len(_name_idx) != actual_num_features:
+         print(f"WARNING: name_indices ({len(_name_idx)}) != number of feature groups in data ({actual_num_features}); ignoring name_indices.")
+         _name_idx = None
     
-    if feature_indices is not None: 
-         feature_names = [f'{base_metric_names[feat_idx]}_Z{zone_idx+1}' for feat_idx in feature_indices for zone_idx in range(values_per_feature)] 
-         actual_group_metrics = [base_metric_names[feat_idx] for feat_idx in feature_indices] #
+    if _name_idx is not None: 
+         feature_names = [f'{base_metric_names[feat_idx]}_Z{zone_idx+1}' for feat_idx in _name_idx for zone_idx in range(values_per_feature)] 
+         actual_group_metrics = [base_metric_names[feat_idx] for feat_idx in _name_idx] #
     elif actual_num_features != len(base_metric_names): 
          print(f"WARNING: actual_num_features ({actual_num_features}) doesn't match number of base_metric_names ({len(base_metric_names)}). Feature names might be inaccurate.")
          if abs(actual_num_features - len(base_metric_names)) > 1: # Use generic names if mismatch is significant
@@ -2459,7 +2470,7 @@ def analyze_feature_group_importance(model, X_test, num_features=9, values_per_f
         report_dir: Directory to save the plot (optional)
     """
     if metrics is None:
-        metrics = ['mean', 'med', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
+        metrics = list(BASE_METRIC_NAMES)
     
     try:
         # Get standardized model name for the filename
@@ -2678,7 +2689,7 @@ def analyze_feature_group_importance(model, X_test, num_features=9, values_per_f
         return {}
 
 
-def analyze_feature_group_zones(model, X_test, feature_names, feature_indices=None, group_name="med", report_dir=None, class_index=0, plot_type='bar'):
+def analyze_feature_group_zones(model, X_test, feature_names, feature_indices=None, group_name="median", report_dir=None, class_index=0, plot_type='bar'):
     """
     Create a visualization showing the importance of each zone for a specific feature group
     with model name included in the filename.
@@ -2688,7 +2699,7 @@ def analyze_feature_group_zones(model, X_test, feature_names, feature_indices=No
         X_test: Test data
         feature_names: List of feature names
         feature_indices: Optional list of indices to use
-        group_name: Specific feature group to analyze (e.g., "med")
+        group_name: Specific feature group to analyze (e.g., "median")
         report_dir: Directory to save visualization
         class_index: Class index for multi-class models
         plot_type: Type of plot to generate ('bar', 'heatmap', or 'clustermap')
@@ -2712,7 +2723,7 @@ def analyze_feature_group_zones(model, X_test, feature_names, feature_indices=No
         # for feature indexing, i.e. features < 9
         # Generate feature names if not provided or if mismatch with X_test
         if feature_names is None or len(feature_names) != X_test.shape[1]:
-            metrics = ['mean', 'med', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
+            metrics = list(BASE_METRIC_NAMES)
             num_zones = 20
             
             if feature_indices is not None:

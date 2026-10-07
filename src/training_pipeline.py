@@ -38,7 +38,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         results: Dictionary of results
     """
     from .core_logic import (
-        run_classification_pipeline, prepare_data, set_seeds, 
+        run_classification_pipeline, prepare_data, set_seeds, BASE_METRIC_NAMES,
         train_evaluate_model, save_best_model, plot_class_distribution,
         analyze_feature_group_importance, run_shap_analysis, plot_learning_curve, analyze_feature_group_zones
     )
@@ -123,7 +123,8 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         is_binary=is_binary,
         preserve_zones=preserve_zones,
         sort_features=sort_features,
-        transform_features=transform_features
+        transform_features=transform_features,
+        name_indices=feature_indices if selected_features is None else None  # [naming fix] columns were pre-sliced above
     )
 
     #    START >>  Save LE and Scaler   
@@ -367,7 +368,7 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         print(f"\nPerforming SHAP and Group Importance analysis on top models...")
 
         #    Define Feature Names and Grouping   
-        metrics = ['mean', 'med', 'std', 'iqr', 'idr', 'skew', 'kurt', 'Del', 'Amp']
+        metrics = list(BASE_METRIC_NAMES)  # [naming fix] was 'med' here but 'median' elsewhere
         num_zones = 20
         num_base_features = len(metrics)
         values_per_group_def = num_zones
