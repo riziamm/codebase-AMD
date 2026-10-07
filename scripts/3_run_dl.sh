@@ -3,7 +3,9 @@
 #   nohup bash scripts/3_run_dl.sh > $ROOT/logs/dl_all.log 2>&1 &
 # Re-running skips any experiment whose folder already has results.
 set -u
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"   # one GPU (RTX A6000) for every DL run: reproducible, avoids multi-GPU worker path
+export CUDA_DEVICE_ORDER=PCI_BUS_ID                          # index 0 = same GPU as nvidia-smi (RTX A6000)
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"      # one GPU for every DL run; Blackwell (sm_120) is NOT supported by this PyTorch
+python -c "import torch;print('DL GPU:', torch.cuda.get_device_name(0))" 2>&1 | grep "DL GPU"
 ROOT="${ROOT:-reruns_eyegrouped}"   # output root (pilot uses ROOT=reruns_pilot)
 
 # ---- EDIT: copy these from the ORIGINAL hybrid run's experiment_config.json ----
