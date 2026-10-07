@@ -63,6 +63,14 @@ git rev-parse HEAD > reruns_eyegrouped/env/commit.txt
 Run anything longer than a few minutes inside `tmux`, and log it:
 `<command> 2>&1 | tee -a reruns_eyegrouped/logs/<name>_$(date +%Y%m%d_%H%M%S).log`
 
+
+## ▶ Pilot first (one command, ~15-30 min, real data)
+```bash
+nohup bash scripts/0_pilot.sh > reruns_pilot.log 2>&1 &
+tail -n 20 reruns_pilot.log        # wait for the CHECKLIST; all lines must say PASS
+```
+Outputs go to `reruns_pilot/` (git-ignored, not for the paper). Delete it after: `rm -rf reruns_pilot`.
+
 ## 1. Frozen split (already done; repeat here only if needed)
 
 ```bash

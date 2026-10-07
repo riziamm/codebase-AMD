@@ -1,11 +1,12 @@
 #!/bin/bash
 # Step B: evaluate every saved model of every experiment on its own test_test.pkl.
-# Writes per-row predictions to reruns_eyegrouped/ml_eval/predictions/
-# Usage:  bash scripts/2_eval_ml_holdout.sh reruns_eyegrouped/ml_batches/batch_*
+# Writes per-row predictions to $ROOT/ml_eval/predictions/
+# Usage:  bash scripts/2_eval_ml_holdout.sh $ROOT/ml_batches/batch_*
 set -u
-OUT="reruns_eyegrouped/ml_eval"
+ROOT="${ROOT:-reruns_eyegrouped}"   # output root (pilot uses ROOT=reruns_pilot)
+OUT="$ROOT/ml_eval"
 BATCH_DIRS=("$@")
-[ ${#BATCH_DIRS[@]} -eq 0 ] && BATCH_DIRS=(reruns_eyegrouped/ml_batches/batch_*)
+[ ${#BATCH_DIRS[@]} -eq 0 ] && BATCH_DIRS=($ROOT/ml_batches/batch_*)
 
 n=0
 for B in "${BATCH_DIRS[@]}"; do

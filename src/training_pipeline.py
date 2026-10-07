@@ -329,14 +329,16 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
     # Save top models
     models_dir = subdirs['models']
     top_models_saved = []
+    # [fix] save EVERY trained model so the holdout can evaluate LR, RF, ... (not only the internal top-2)
+    for _mn, _ in sorted_models:
+        _mp = models_dir / f"{_mn.replace(' ', '_').lower()}.pkl"
+        with open(_mp, 'wb') as f:
+            pickle.dump(trained_models[_mn], f)
+    print(f"Saved all {len(sorted_models)} trained models to {models_dir}")
     for i, (model_name, f1_score) in enumerate(sorted_models):
-        if i < 2:  # 0, 1, 2 = top 3
+        if i < 2:  # extra feature-group analysis for the internal top-2 only
             model = trained_models[model_name]
-            model_path = models_dir / f"{model_name.replace(' ', '_').lower()}.pkl"
-            with open(model_path, 'wb') as f:
-                pickle.dump(model, f)
             top_models_saved.append(model_name)
-            print(f"Saved {model_name} to {model_path} (Top {i+1} model, F1={f1_score:.4f})")
             
             if analyze_shap: 
                 try:
@@ -396,10 +398,14 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
             # Fallback: Generate generic names if mismatch is critical
             feature_names = [f'feat_{i}' for i in range(X_test.shape[1])]
             
-        num_models_to_analyze = min(3, len(sorted_models)) # Max 3 if needed
+        # [fix] always explain the paper's models (RF, LR) as well as the internal top-3
+        _must = [m for m in ('Random Forest', 'Logistic Regression') if m in trained_models]
+        _shap_list = list(dict.fromkeys([m for m, _ in sorted_models[:3]] + _must))
+        _shap_models = [(m, f1_scores.get(m, 0)) for m in _shap_list]
+        num_models_to_analyze = len(_shap_models)
 
         #    Loop through top models   
-        for i, (model_name, f1_score) in enumerate(sorted_models[:num_models_to_analyze]):
+        for i, (model_name, f1_score) in enumerate(_shap_models):
             print(f"\n--- Analyzing Model {i+1}/{num_models_to_analyze} {model_name}   ")
             model = trained_models[model_name]
             
@@ -572,8 +578,11 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
         model_results = {
             'accuracy': accuracies.get(model_name, 0),
             'f1_score': f1_scores.get(model_name, 0),
-            'roc_auc_score': roc_auc_scores.get(model_name, 0.0), 
-            'avg_precision_score': avg_precision_scores.get(model_name, 0.0),
+            'roc_auc_score': roc_auc_scores.get(model_name, float('nan')), 
+            'avg_precision_score': avg_precision_scores.get(model_name, float('nan')),
+            'sensitivity': results.get('sensitivity_scores', {}).get(model_name, float('nan')),  # [AUC fix]
+            'specificity': results.get('specificity_scores', {}).get(model_name, float('nan')),
+            'balanced_accuracy': results.get('balanced_accuracy_scores', {}).get(model_name, float('nan')),
             'is_best_model': model_name == best_model_name,
             'classification_report': classification_report(
                 y_test, 
@@ -602,13 +611,16 @@ def run_classification_pipeline_with_reporting(data_path, report_dir=None, **kwa
     models = list(accuracies.keys())
     acc_values = [accuracies[m] for m in models]
     f1_values = [f1_scores[m] for m in models]
-    roc_auc_values = [roc_auc_scores.get(m, 0.0) for m in models] 
+    roc_auc_values = [roc_auc_scores.get(m, float('nan')) for m in models] 
+    sens_values = [results.get('sensitivity_scores', {}).get(m, float('nan')) for m in models]
     
     x = np.arange(len(models))
-    width = 0.25
+    width = 0.2
     
-    plt.bar(x - width/2, acc_values, width, label='Accuracy')
-    plt.bar(x + width/2, f1_values, width, label='F1 Score')
+    plt.bar(x - 1.5*width, roc_auc_values, width, label='AUC')  # [AUC fix] AUC + sensitivity first
+    plt.bar(x - 0.5*width, sens_values, width, label='Sensitivity')
+    plt.bar(x + 0.5*width, f1_values, width, label='F1 (weighted)')
+    plt.bar(x + 1.5*width, acc_values, width, label='Accuracy')
     plt.xlabel('Models')
     plt.ylabel('Score')
     plt.title('Model Performance Comparison')

@@ -1,8 +1,9 @@
 #!/bin/bash
 # Step C: all DL reruns, one after another.  Run with nohup (see RERUN.md):
-#   nohup bash scripts/3_run_dl.sh > reruns_eyegrouped/logs/dl_all.log 2>&1 &
+#   nohup bash scripts/3_run_dl.sh > $ROOT/logs/dl_all.log 2>&1 &
 # Re-running skips any experiment whose folder already has results.
 set -u
+ROOT="${ROOT:-reruns_eyegrouped}"   # output root (pilot uses ROOT=reruns_pilot)
 
 # ---- EDIT: copy these from the ORIGINAL hybrid run's experiment_config.json ----
 EPOCHS_TRAIN=30
@@ -13,7 +14,7 @@ BATCH=16
 # --------------------------------------------------------------------------------
 
 DATA="data/mpod.csv"          # full file incl. Subject/Eye columns
-OUT="reruns_eyegrouped/dl"
+OUT="$ROOT/dl"
 COMMON="--dataset mpod --data_path $DATA --report_base_dir $OUT --use_gpu --tune_hyperparameters \
  --split_seed 42 --epochs_training $EPOCHS_TRAIN --epochs_tuning $EPOCHS_TUNE \
  --cv_splits_training $CV_TRAIN --cv_splits_tuning $CV_TUNE --batch_size $BATCH"

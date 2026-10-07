@@ -394,8 +394,12 @@ def generate_html_report(report_dir, experiment_config, results):
                         'f1_score': model_results.get('f1_score', 0),
                         'precision': model_results.get('precision', 0),
                         'recall': model_results.get('recall', 0),
-                        'roc_auc':  model_results.get('roc_auc_scores',0.0),
-                        'avg_precision': model_results.get('avg_precision_scores', 0.0)
+                        # [AUC fix] key is 'roc_auc_score' (singular) in all_model_metrics.json; was always 0.0
+                        'roc_auc':  model_results.get('roc_auc_score', float('nan')),
+                        'sensitivity': model_results.get('sensitivity', float('nan')),
+                        'specificity': model_results.get('specificity', float('nan')),
+                        'balanced_accuracy': model_results.get('balanced_accuracy', float('nan')),
+                        'avg_precision': model_results.get('avg_precision_score', float('nan'))
                     })
                     
                     if 'classification_report' in model_results:

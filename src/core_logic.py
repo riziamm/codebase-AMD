@@ -31,7 +31,7 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso
 from sklearn.svm import SVC
 from sklearn.pipeline import Pipeline 
-from sklearn.metrics import classification_report, accuracy_score, ConfusionMatrixDisplay, f1_score, roc_auc_score, roc_curve, auc, precision_recall_curve, average_precision_score, confusion_matrix
+from sklearn.metrics import classification_report, accuracy_score, ConfusionMatrixDisplay, f1_score, roc_auc_score, roc_curve, auc, precision_recall_curve, average_precision_score, confusion_matrix, balanced_accuracy_score
 from sklearn.base import clone
 from sklearn.feature_selection import SelectFromModel, f_classif
 from sklearn.compose import ColumnTransformer
@@ -3386,11 +3386,22 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
         base_models = tuned_models 
 
     results = {}; accuracies = {}; f1_scores_map = {}; trained_models = {} 
+    roc_auc_map = {}; avg_precision_map = {}; sens_map = {}; spec_map = {}; bal_acc_map = {}  # [AUC fix]
     for name, model_to_train in base_models.items(): 
         trained_model_instance, y_pred, roc_auc, avg_precision = train_evaluate_model(model_to_train, X_train, X_test, y_train, y_test, name, le) 
         trained_models[name] = trained_model_instance 
         acc = accuracy_score(y_test, y_pred); f1 = f1_score(y_test, y_pred, average='weighted') 
         accuracies[name] = acc; f1_scores_map[name] = f1 
+        # [AUC fix] keep AUC/AP and sensitivity/specificity instead of discarding them
+        roc_auc_map[name] = float(roc_auc) if roc_auc is not None else float('nan')
+        avg_precision_map[name] = float(avg_precision) if avg_precision is not None else float('nan')
+        bal_acc_map[name] = balanced_accuracy_score(y_test, y_pred)
+        if len(np.unique(y_test)) == 2:
+            _yt, _yp = np.asarray(y_test), np.asarray(y_pred)
+            sens_map[name] = float(((_yt == 1) & (_yp == 1)).sum() / max((_yt == 1).sum(), 1))
+            spec_map[name] = float(((_yt == 0) & (_yp == 0)).sum() / max((_yt == 0).sum(), 1))
+        print(f"{name}: AUC={roc_auc_map[name]:.4f}  Sens={sens_map.get(name, float('nan')):.4f}  "
+              f"Spec={spec_map.get(name, float('nan')):.4f}  BalAcc={bal_acc_map[name]:.4f}")
         save_results(name, acc, roc_auc, avg_precision, str(trained_model_instance.get_params()), X.shape[1], data_path, is_binary, preserve_zones, sort_features, normalization, sampling_method, y_test, y_pred) 
     
     print("\nModel Performance Comparison:") 
@@ -3460,6 +3471,8 @@ def run_classification_pipeline(data_path, normalization='standard', sampling_me
 
     return best_model, { 
         'trained_models': trained_models, 'accuracies': accuracies, 'f1_scores': f1_scores_map, 
+        'roc_auc_scores': roc_auc_map, 'avg_precision_scores': avg_precision_map,  # [AUC fix]
+        'sensitivity_scores': sens_map, 'specificity_scores': spec_map, 'balanced_accuracy_scores': bal_acc_map,
         'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test, 'le': le, 
         'feature_names': feature_names, 'best_model_name': best_model_name, 
         'f1_score': best_model_f1_run, 

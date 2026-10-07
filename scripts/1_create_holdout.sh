@@ -1,11 +1,12 @@
 #!/bin/bash
 # Step A: turn the frozen holdout CSV into test_test.pkl for EVERY experiment in the given batch folders.
-# Usage:  bash scripts/1_create_holdout.sh reruns_eyegrouped/ml_batches/batch_*
-# (no args = all batches under reruns_eyegrouped/ml_batches)
+# Usage:  bash scripts/1_create_holdout.sh $ROOT/ml_batches/batch_*
+# (no args = all batches under $ROOT/ml_batches)
 set -u
+ROOT="${ROOT:-reruns_eyegrouped}"   # output root (pilot uses ROOT=reruns_pilot)
 HOLDOUT_CSV="reruns_eyegrouped/split/test_mpod.csv"
 BATCH_DIRS=("$@")
-[ ${#BATCH_DIRS[@]} -eq 0 ] && BATCH_DIRS=(reruns_eyegrouped/ml_batches/batch_*)
+[ ${#BATCH_DIRS[@]} -eq 0 ] && BATCH_DIRS=($ROOT/ml_batches/batch_*)
 [ -f "$HOLDOUT_CSV" ] || { echo "ERROR: $HOLDOUT_CSV not found"; exit 1; }
 
 n=0
