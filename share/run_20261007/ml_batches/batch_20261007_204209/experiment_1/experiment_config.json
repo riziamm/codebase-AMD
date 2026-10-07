@@ -1,0 +1,12 @@
+{
+ "_name": "base_all_none_none",
+ "normalization": "none",
+ "sampling_method": "none",
+ "is_binary": true,
+ "preserve_zones": true,
+ "sort_features": "none",
+ "tune_hyperparams": false,
+ "analyze_shap": true,
+ "transform_features": false,
+ "data_path": "reruns_eyegrouped/split/train_mpod.csv"
+}

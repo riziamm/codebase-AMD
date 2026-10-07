@@ -1,0 +1,115 @@
+[
+ {
+  "_name": "base_all_none_none",
+  "normalization": "none",
+  "sampling_method": "none",
+  "is_binary": true,
+  "preserve_zones": true,
+  "sort_features": "none",
+  "tune_hyperparams": false,
+  "analyze_shap": true,
+  "transform_features": false
+ },
+ {
+  "_name": "all_std_smote_tuned",
+  "normalization": "standard",
+  "sampling_method": "smote",
+  "is_binary": true,
+  "preserve_zones": true,
+  "sort_features": "none",
+  "tune_hyperparams": true,
+  "analyze_shap": true,
+  "transform_features": false
+ },
+ {
+  "_name": "structural_0_6",
+  "normalization": "standard",
+  "sampling_method": "smote",
+  "is_binary": true,
+  "preserve_zones": true,
+  "sort_features": "none",
+  "tune_hyperparams": true,
+  "analyze_shap": true,
+  "transform_features": false,
+  "feature_indices": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ]
+ },
+ {
+  "_name": "lowval_2_5_7",
+  "normalization": "standard",
+  "sampling_method": "smote",
+  "is_binary": true,
+  "preserve_zones": true,
+  "sort_features": "none",
+  "tune_hyperparams": true,
+  "analyze_shap": true,
+  "transform_features": false,
+  "feature_indices": [
+   2,
+   5,
+   7
+  ]
+ },
+ {
+  "_name": "all_except_lowval",
+  "normalization": "standard",
+  "sampling_method": "smote",
+  "is_binary": true,
+  "preserve_zones": true,
+  "sort_features": "none",
+  "tune_hyperparams": true,
+  "analyze_shap": true,
+  "transform_features": false,
+  "feature_indices": [
+   0,
+   1,
+   3,
+   4,
+   6,
+   8
+  ]
+ },
+ {
+  "_name": "structural_plus_lowval",
+  "normalization": "standard",
+  "sampling_method": "smote",
+  "is_binary": true,
+  "preserve_zones": true,
+  "sort_features": "none",
+  "tune_hyperparams": true,
+  "analyze_shap": true,
+  "transform_features": false,
+  "feature_indices": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7
+  ]
+ },
+ {
+  "_name": "functional_7_8",
+  "normalization": "standard",
+  "sampling_method": "smote",
+  "is_binary": true,
+  "preserve_zones": true,
+  "sort_features": "none",
+  "tune_hyperparams": true,
+  "analyze_shap": true,
+  "transform_features": false,
+  "feature_indices": [
+   7,
+   8
+  ]
+ }
+]

@@ -1,0 +1,12 @@
+{
+ "_name": "all_std_smote_tuned",
+ "normalization": "standard",
+ "sampling_method": "smote",
+ "is_binary": true,
+ "preserve_zones": true,
+ "sort_features": "none",
+ "tune_hyperparams": true,
+ "analyze_shap": true,
+ "transform_features": false,
+ "data_path": "reruns_eyegrouped/split/train_mpod.csv"
+}
