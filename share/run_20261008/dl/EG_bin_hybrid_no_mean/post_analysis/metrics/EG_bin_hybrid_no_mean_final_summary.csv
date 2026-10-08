@@ -1,0 +1,2 @@
+experiment_name,model_name,val_acc,holdout_acc,val_f1,val_f1_95_ci,holdout_f1,holdout_f1_ci,holdout_kappa,notes (params)
+EG_bin_hybrid_no_mean,CNNTransformer_parallel,0.5,0.4444444444444444,0.5625,"[0.4368, 0.6731]",0.5454545454545454,"[0.2500, 0.7692]",-0.15384615384615397,"{'feature_dim': 160, 'num_classes': 1, 'dropout_rate': 0.3, 'cnn_units': 64, 'transformer_dim': 64, 'transformer_heads': 2, 'transformer_layers': 1, 'architecture_mode': 'parallel', 'fc_dropout': 0.2, 'cnn_dropout': 0.3, 'transformer_dropout': 0.3, 'pos_weight_value': 75.0}"

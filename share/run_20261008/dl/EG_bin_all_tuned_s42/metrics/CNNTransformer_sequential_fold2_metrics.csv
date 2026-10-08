@@ -1,0 +1,2 @@
+model_name,accuracy,f1_score,precision,recall,auc,epoch,val_loss,timestamp
+CNNTransformer_sequential_fold2,0.5714285714285714,0.7272727272727273,0.5714285714285714,1.0,0.703125,0,0.5889838337898254,2026-10-07 20:47:50

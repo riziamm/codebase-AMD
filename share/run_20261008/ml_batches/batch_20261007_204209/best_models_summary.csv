@@ -1,0 +1,8 @@
+experiment,model_name,f1_score,report_dir
+experiment_3,Gaussian NB,0.7015873015873015,reruns_eyegrouped/ml_batches/batch_20261007_204209/experiment_3
+experiment_4,SVM,0.5714285714285714,reruns_eyegrouped/ml_batches/batch_20261007_204209/experiment_4
+experiment_5,Gaussian NB,0.5523809523809523,reruns_eyegrouped/ml_batches/batch_20261007_204209/experiment_5
+experiment_1,Logistic Regression,0.5025641025641026,reruns_eyegrouped/ml_batches/batch_20261007_204209/experiment_1
+experiment_6,Random Forest,0.5025641025641026,reruns_eyegrouped/ml_batches/batch_20261007_204209/experiment_6
+experiment_2,Logistic Regression,0.4919786096256685,reruns_eyegrouped/ml_batches/batch_20261007_204209/experiment_2
+experiment_7,RF_pipleline,0.42857142857142855,reruns_eyegrouped/ml_batches/batch_20261007_204209/experiment_7

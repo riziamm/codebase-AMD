@@ -1,0 +1,2 @@
+model_name,accuracy,f1_score,precision,recall,auc,epoch,val_loss,timestamp
+CNNTransformer_parallel_fold2,0.4642857142857143,0.21052631578947367,0.6666666666666666,0.125,0.5052083333333333,0,0.5954229831695557,2026-10-07 21:21:47
