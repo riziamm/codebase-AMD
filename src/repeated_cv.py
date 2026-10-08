@@ -69,6 +69,27 @@ def load_data(paths):
     return df
 
 
+TASKS = {"any": ([1, 2, 3, 4], [2, 3, 4]), "early": ([1, 2], [2]), "advanced": ([1, 3, 4], [3, 4])}
+RING_OF = {z: ("centre" if z <= 4 else "middle" if z <= 12 else "outer") for z in range(1, 21)}
+
+
+def apply_task(df, task):
+    """Keep the AREDS grades of the task and set the binary label yb (1 = disease)."""
+    keep, pos = TASKS[task]
+    df = df[df["Y"].isin(keep)].reset_index(drop=True).copy()
+    df["yb"] = df["Y"].isin(pos).astype(int)
+    return df
+
+
+def feature_columns(groups="all", rings="all"):
+    G = BASE if groups == "all" else groups.split(",")
+    Rg = ("centre", "middle", "outer") if rings == "all" else tuple(rings.split(","))
+    bad = [g for g in G if g not in BASE] + [r for r in Rg if r not in ("centre", "middle", "outer")]
+    if bad:
+        sys.exit(f"unknown groups/rings: {bad}")
+    return [f"{b}_region{z}" for b in G for z in range(1, 21) if RING_OF[z] in Rg]
+
+
 def outer_splits(df, K, R, seed, group_by):
     if group_by == "eye":
         units = df.groupby("eye_id")["Y"].first(); col = "eye_id"
@@ -90,21 +111,18 @@ def permute_labels(df, rng, scheme):
     eye_y = df.groupby("eye_id")["yb"].first()
     if scheme == "eye":
         new = pd.Series(rng.permutation(eye_y.values), index=eye_y.index)
-    else:  # block: shuffle each subject's (eye1, eye2) label pair between subjects
+    else:  # block: shuffle each subject's eye-label tuple between subjects with the same number of eyes
         subj = df.groupby("eye_id")["Subject"].first()
         eyeno = df.groupby("eye_id")["Eye"].first()
-        pairs = {}
-        for s in subj.unique():
-            ids = subj.index[subj == s]
-            ids = sorted(ids, key=lambda e: eyeno[e])
-            if len(ids) != 2:
-                return permute_labels(df, rng, "eye")
-            pairs[s] = (eye_y[ids[0]], eye_y[ids[1]])
-        S = list(pairs); perm = rng.permutation(len(S)); new = {}
-        for i, s in enumerate(S):
-            ids = sorted(subj.index[subj == s], key=lambda e: eyeno[e])
-            src = pairs[S[perm[i]]]
-            new[ids[0]], new[ids[1]] = src
+        eyes_of = {s: sorted(subj.index[subj == s], key=lambda e: eyeno[e]) for s in subj.unique()}
+        new = {}
+        for n_eyes in sorted({len(v) for v in eyes_of.values()}):
+            S = [s for s, v in eyes_of.items() if len(v) == n_eyes]
+            perm = rng.permutation(len(S))
+            for i, s in enumerate(S):
+                src = [eye_y[e] for e in eyes_of[S[perm[i]]]]
+                for e, lab in zip(eyes_of[s], src):
+                    new[e] = lab
         new = pd.Series(new)
     return df["eye_id"].map(new).values.astype(int)
 
@@ -262,11 +280,15 @@ def cmd_run(a):
     out = Path(a.out) / a.model; out.mkdir(parents=True, exist_ok=True)
     if (out / "summary.json").exists() and not a.force:
         print(f"[skip] {a.model}: summary.json exists (use --force)"); return
-    df = load_data(a.data)
-    X = df.iloc[:, :180].to_numpy(float); y = df["yb"].to_numpy(); groups = df["eye_id"].to_numpy()
+    df = apply_task(load_data(a.data), a.task)
+    cols = feature_columns(a.groups, a.rings)
+    if a.model in DL_MODELS and len(cols) != 180:
+        sys.exit("hybrid models need all 180 features (--groups all --rings all)")
+    X = df[cols].to_numpy(float); y = df["yb"].to_numpy(); groups = df["eye_id"].to_numpy()
     device = "cpu"
     if a.model in DL_MODELS:
         torch, _ = _torch(); device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"   task={a.task} features={len(cols)} (groups={a.groups}, rings={a.rings})")
     print(f"== {a.model} | group_by={a.group_by} K={a.k} R={a.repeats} perms={a.n_perm}x{a.perm_repeats} device={device}")
     print(f"   rows={len(df)} eyes={df.eye_id.nunique()} subjects={df.Subject.nunique()} AMD rows={int(y.sum())}")
     splits = outer_splits(df, a.k, a.repeats, a.seed, a.group_by)
@@ -313,7 +335,7 @@ def cmd_run(a):
     null = np.array(null[:a.n_perm])
     p_above = (1 + (null >= t_obs).sum()) / (1 + len(null)) if len(null) else np.nan
     p_below = (1 + (null <= t_obs).sum()) / (1 + len(null)) if len(null) else np.nan
-    s = dict(model=a.model, group_by=a.group_by, k=a.k, repeats=a.repeats, n_rows=len(df), n_eyes=int(df.eye_id.nunique()),
+    s = dict(model=a.model, task=a.task, groups=a.groups, rings=a.rings, n_features=len(cols), group_by=a.group_by, k=a.k, repeats=a.repeats, n_rows=len(df), n_eyes=int(df.eye_id.nunique()),
              n_subjects=int(df.Subject.nunique()), auc_mean=float(aucs.mean()),
              auc_sd_repeats=float(aucs.std(ddof=1)) if len(aucs) > 1 else 0.0,
              auc_ci_lo=float(np.percentile(boot, 2.5)), auc_ci_hi=float(np.percentile(boot, 97.5)),
@@ -332,7 +354,8 @@ def cmd_aggregate(a):
     if not models:
         sys.exit("no finished models found")
     S = {m: json.load(open(root / m / "summary.json")) for m in models}
-    df = load_data(a.data); y = df["yb"].to_numpy()
+    t0 = S[models[0]]
+    df = apply_task(load_data(a.data), t0.get("task", "any")); y = df["yb"].to_numpy()
     OOF = {}
     for m in models:
         o = pd.read_csv(root / m / "oof.csv")
@@ -342,7 +365,8 @@ def cmd_aggregate(a):
         s = S[m]
         verdict = ("SIGNAL" if (s["p_above"] < 0.05 and s["auc_mean"] >= 0.65)
                    else "BELOW CHANCE" if s["p_below"] < 0.05 else "NO DETECTABLE SIGNAL")
-        rows.append(dict(model=m, group_by=s["group_by"], n_eyes=s["n_eyes"], repeats=s["repeats"],
+        rows.append(dict(model=m, task=s.get("task", "any"), groups=s.get("groups", "all"), rings=s.get("rings", "all"),
+                         group_by=s["group_by"], n_eyes=s["n_eyes"], repeats=s["repeats"],
                          AUC=s["auc_mean"], AUC_lo=s["auc_ci_lo"], AUC_hi=s["auc_ci_hi"], AUC_sd_repeats=s["auc_sd_repeats"],
                          p_above=s["p_above"], p_below=s["p_below"], null_mean=s["null_mean"], null_sd=s["null_sd"],
                          sensitivity=s["sensitivity"], specificity=s["specificity"], balanced_acc=s["balanced_acc"],
@@ -363,10 +387,11 @@ def cmd_aggregate(a):
             d = np.array(d)
             pairs.append(dict(comparison=f"{A} - {B}", dAUC=obs, lo=np.percentile(d, 2.5), hi=np.percentile(d, 97.5),
                               boot_p_two_sided=min(1.0, 2 * min((d <= 0).mean(), (d >= 0).mean()))))
-    pd.DataFrame(pairs).to_csv(root / "paired.csv", index=False)
+    pd.DataFrame(pairs, columns=["comparison", "dAUC", "lo", "hi", "boot_p_two_sided"]).to_csv(root / "paired.csv", index=False)
     pd.set_option("display.width", 220)
     show = summ[["model", "AUC", "AUC_lo", "AUC_hi", "p_above", "p_below", "sensitivity", "specificity", "pred_pos_rate", "verdict"]]
-    md = ["# Repeated nested eye-grouped CV", "", f"group_by = {summ.group_by.iloc[0]}, eyes = {summ.n_eyes.iloc[0]}, repeats = {summ.repeats.iloc[0]}", "",
+    md = ["# Repeated nested eye-grouped CV", "", f"task = {summ.task.iloc[0]}, groups = {summ.groups.iloc[0]}, rings = {summ.rings.iloc[0]}, "
+          f"group_by = {summ.group_by.iloc[0]}, eyes = {summ.n_eyes.iloc[0]}, repeats = {summ.repeats.iloc[0]}", "",
           show.round(3).to_markdown(index=False) if hasattr(show, "to_markdown") else show.round(3).to_string(index=False), "",
           "All-positive F1 baseline: %.3f" % summ.all_positive_f1.iloc[0], "", "Paired dAUC (eye-clustered bootstrap):", "",
           pd.DataFrame(pairs).round(3).to_string(index=False) if pairs else "n/a"]
@@ -387,6 +412,9 @@ def main():
         if name == "run":
             p.add_argument("--model", required=True, choices=[*SKLEARN_MODELS, *DL_MODELS])
             p.add_argument("--group_by", default="eye", choices=["eye", "subject"])
+            p.add_argument("--task", default="any", choices=list(TASKS))
+            p.add_argument("--groups", default="all", help="comma list of feature groups, e.g. Del,Amp  (default all 9)")
+            p.add_argument("--rings", default="all", help="comma list of rings: centre,middle,outer (default all)")
             p.add_argument("--k", type=int, default=5)
             p.add_argument("--repeats", type=int, default=10)
             p.add_argument("--n_perm", type=int, default=200)

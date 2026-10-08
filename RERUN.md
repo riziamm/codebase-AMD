@@ -98,6 +98,25 @@ bash scripts/5_package_share.sh      # then git add share/ && git commit && git 
 Outputs: `reruns_eyegrouped/repeated_cv/{eye,subject}/summary.csv`, `paired.csv`, `REPORT.md`. `eye` = primary (matches the paper); `subject` = conservative sensitivity analysis (fellow eyes never split).
 Verdict rule per model: **SIGNAL** if permutation p_above < 0.05 and AUC >= 0.65; **BELOW CHANCE** if p_below < 0.05; otherwise **NO DETECTABLE SIGNAL**.
 
+
+## ▶ Export from the .mat (replaces the old unwrapping code)
+```bash
+# optional, in MATLAB once (tables can't be read from .mat by Python):  writetable(d.T,'demographics_raw.csv')
+python -m src.mat_to_csv --mat path/to/experiment.mat --out data/export --compare data/mpod.csv \
+       [--demographics demographics_raw.csv]
+```
+Writes `mpod.csv` (same layout/order as before), `ofa44.csv` (Del2/Amp2, 44 regions), `zone_rings.csv` (d.p.ring),
+`demographics.csv`. `--compare` must print **IDENTICAL to old CSV**. SbjID is never written.
+
+## ▶ Diagnostics: where is the signal? (stage- and ring-specific)
+```bash
+nohup bash scripts/8_diagnostics.sh > reruns_eyegrouped/logs/diagnostics.log 2>&1 &
+grep -a "==\|DONE" reruns_eyegrouped/logs/diagnostics.log
+bash scripts/5_package_share.sh       # then git add share/ && git commit && git push
+```
+Outputs: `diagnostics/REPORT.md` + heatmap (stage x feature x ring AUCs, positive control, test-retest ICC),
+`repeated_cv/OVERVIEW.csv` (early / advanced / ring-only / functional-only / structural-only models).
+
 ## 1. Frozen split (already done; repeat here only if needed)
 
 ```bash

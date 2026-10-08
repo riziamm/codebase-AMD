@@ -42,7 +42,7 @@ def strip_json(obj):
 OOF_COLS = {"cv_rep", "row_index", "eye_code", "y_true", "y_prob"}
 
 
-def csv_ok(path, pred_mode=False):
+def csv_ok(path, pred_mode=False, max_rows=200):
     if Path(path).name == "oof.csv":  # repeated-CV out-of-fold scores: pseudonymous eye_code, no features
         try:
             cols = set(pd.read_csv(path, nrows=5).columns)
@@ -60,8 +60,8 @@ def csv_ok(path, pred_mode=False):
         return (len(df) <= 40, "too many rows" if len(df) > 40 else "")
     if any(c.lower() in BAD_COLS for c in cols) or any(any(b in c for b in BAD_SUBSTR) for c in cols):
         return False, "has ID/feature columns"
-    if len(df) > 200:
-        return False, ">200 rows"
+    if len(df) > max_rows:
+        return False, f">{max_rows} rows"
     return True, ""
 
 
@@ -96,7 +96,7 @@ class Packager:
             json.dump(data, open(dst, "w"), indent=1)
         elif suf == ".csv":
             pred = "preds_holdout" in src.parts
-            ok, why = csv_ok(src, pred_mode=pred)
+            ok, why = csv_ok(src, pred_mode=pred, max_rows=2000 if "diagnostics" in src.parts else 200)
             if not ok:
                 self.skipped.append((str(src), why)); return
             shutil.copy2(src, dst)
@@ -138,7 +138,11 @@ def main():
         for f in dl.glob(pat):
             P.add(f, dl, "dl")
 
+    for f in (root / "diagnostics").rglob("*"):
+        if f.suffix.lower() in {".csv", ".md", ".png", ".json"}:
+            P.add(f, root / "diagnostics", "diagnostics")
     rcv = root / "repeated_cv"
+    P.add(rcv / "OVERVIEW.csv", rcv, "repeated_cv")
     for pat in ("*/summary.csv", "*/paired.csv", "*/REPORT.md", "*/*/summary.json", "*/*/null.csv"):
         for f in rcv.glob(pat):
             P.add(f, rcv, "repeated_cv")
@@ -156,7 +160,8 @@ def main():
     if P.bytes / 1e6 > a.max_total_mb:
         print(f"WARNING: package is {P.bytes/1e6:.0f} MB (> {a.max_total_mb} MB). Consider deleting figures/ folders you don't need before pushing.")
     # final safety scan of the OUTPUT folder
-    bad = [str(f) for f in Path(a.out).rglob("*.csv") if "preds_holdout" not in f.parts and not csv_ok(f)[0]]
+    bad = [str(f) for f in Path(a.out).rglob("*.csv")
+           if "preds_holdout" not in f.parts and not csv_ok(f, max_rows=2000 if "diagnostics" in f.parts else 200)[0]]
     bad += [str(f) for f in Path(a.out).rglob("*") if f.suffix.lower() in {".pkl", ".npy", ".npz", ".pt", ".html"}]
     if bad:
         raise SystemExit(f"SAFETY SCAN FAILED, remove before pushing: {bad[:5]}")
