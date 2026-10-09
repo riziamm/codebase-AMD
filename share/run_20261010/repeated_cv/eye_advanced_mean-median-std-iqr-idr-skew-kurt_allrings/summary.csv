@@ -1,0 +1,2 @@
+model,task,groups,rings,group_by,n_eyes,repeats,AUC,AUC_lo,AUC_hi,AUC_sd_repeats,p_above,p_below,null_mean,null_sd,sensitivity,specificity,balanced_acc,pred_pos_rate,f1_amd,f1_weighted,all_positive_f1,verdict
+lr,advanced,"mean,median,std,iqr,idr,skew,kurt",all,eye,43,10,0.9096153846153847,0.8293478260869567,0.9687630208333332,0.0168691588565661,0.004975124378109453,1.0,0.569806278280543,0.10923970910686469,0.8911764705882351,0.7961538461538462,0.8436651583710407,0.47558139534883714,0.8089842589518149,0.8353822832168527,0.5666666666666667,SIGNAL
