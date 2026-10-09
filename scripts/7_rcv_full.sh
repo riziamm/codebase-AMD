@@ -16,26 +16,34 @@ DATA="--data $SPLIT/train_mpod.csv $SPLIT/test_mpod.csv"
 mkdir -p "$ROOT/logs"
 python -c "import torch;print('DL GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none (CPU)')" 2>&1 | grep "DL GPU"
 
+TASKS="${TASKS:-any advanced}"   # any = AREDS 2-4 vs 1 (paper's task); advanced = 3-4 vs 1
 cpu_phase () {
-  for G in eye subject; do for M in lr rf; do
-    echo "== $(date +%T) $M $G"
-    python -m src.repeated_cv run --model $M $DATA --out $ROOT/repeated_cv/$G --group_by $G --k $K --repeats $R \
-      --n_perm $P --perm_repeats $PR --n_jobs $NJ --rf_trees $TREES >> $ROOT/logs/rcv_${M}_${G}.log 2>&1 || echo "!! FAILED $M $G"
-    grep -a "DONE" $ROOT/logs/rcv_${M}_${G}.log | tail -1
-  done; done
+  for T in $TASKS; do for G in eye subject; do for M in lr rf; do
+    TAG="${G}_${T}_all_allrings"; echo "== $(date +%T) $M $TAG"
+    python -m src.repeated_cv run --model $M --task $T $DATA --out $ROOT/repeated_cv/$TAG --group_by $G --k $K --repeats $R \
+      --n_perm $P --perm_repeats $PR --n_jobs $NJ --rf_trees $TREES >> $ROOT/logs/rcv_${M}_${TAG}.log 2>&1 || echo "!! FAILED $M $TAG"
+    grep -a "DONE\|skip" $ROOT/logs/rcv_${M}_${TAG}.log | tail -1
+  done; done; done
 }
 gpu_phase () {
-  for G in eye subject; do for M in hybrid_zone hybrid_orig; do
-    echo "== $(date +%T) $M $G"
-    python -m src.repeated_cv run --model $M $DATA --out $ROOT/repeated_cv/$G --group_by $G --k $K --repeats $R \
-      --n_perm $PD --perm_repeats $PR --dl_epochs $EP >> $ROOT/logs/rcv_${M}_${G}.log 2>&1 || echo "!! FAILED $M $G"
-    grep -a "DONE" $ROOT/logs/rcv_${M}_${G}.log | tail -1
-  done; done
+  for T in $TASKS; do for G in eye subject; do for M in hybrid_zone hybrid_orig; do
+    TAG="${G}_${T}_all_allrings"; echo "== $(date +%T) $M $TAG"
+    python -m src.repeated_cv run --model $M --task $T $DATA --out $ROOT/repeated_cv/$TAG --group_by $G --k $K --repeats $R \
+      --n_perm $PD --perm_repeats $PR --dl_epochs $EP >> $ROOT/logs/rcv_${M}_${TAG}.log 2>&1 || echo "!! FAILED $M $TAG"
+    grep -a "DONE\|skip" $ROOT/logs/rcv_${M}_${TAG}.log | tail -1
+  done; done; done
 }
 if [ "${PAR:-1}" = "1" ]; then cpu_phase & gpu_phase & wait; else cpu_phase; gpu_phase; fi
 
-for G in eye subject; do
-  echo; echo "######## AGGREGATE: $G-grouped ########"
-  python -m src.repeated_cv aggregate --out $ROOT/repeated_cv/$G $DATA 2>&1 | tail -16
+for D in $ROOT/repeated_cv/*_*_all_allrings $ROOT/repeated_cv/eye_*_*; do
+  [ -d "$D" ] || continue
+  python -m src.repeated_cv aggregate --out $D $DATA > $D/aggregate.log 2>&1 || echo "!! aggregate failed: $D"
 done
+python - <<PY
+import pandas as pd, glob
+t = pd.concat([pd.read_csv(f) for f in sorted(glob.glob("$ROOT/repeated_cv/*/summary.csv"))], ignore_index=True)
+t = t[["task","groups","rings","group_by","model","n_eyes","AUC","AUC_lo","AUC_hi","p_above","p_below","verdict"]]
+t.to_csv("$ROOT/repeated_cv/OVERVIEW.csv", index=False)
+pd.set_option("display.width", 220); print(t.round(3).to_string(index=False))
+PY
 echo; echo "ALL DONE $(date). Next: bash scripts/5_package_share.sh  then git add share/ && git commit && git push"
