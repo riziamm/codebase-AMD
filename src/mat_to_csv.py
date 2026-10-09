@@ -108,6 +108,54 @@ def unroll(blocks, names, sevs):
     return pd.concat([df, idf], axis=1)
 
 
+def _fields(obj):
+    f = getattr(obj, "_fieldnames", None)          # scipy mat_struct
+    if f is None and hasattr(obj, "keys"):           # h5py group
+        f = list(obj.keys())
+    return list(f) if f else []
+
+
+def write_rings(d, get, out, ring_field=None):
+    """d.p.ring may be numeric (20 values) or a struct. For a struct, use --ring_field, else the first
+    numeric field with 20 values (region -> ring number) or a field holding 3 lists of region numbers."""
+    p = get(d, "p")
+    ring = get(p, "ring") if p is not None else None
+    if ring is None:
+        print("d.p.ring not found -> zone_rings.csv skipped"); return
+    fields = _fields(ring)
+    if fields:
+        print(f"d.p.ring is a struct with fields: {fields}")
+        cand = [ring_field] if ring_field else fields
+        vec = None
+        for f in cand:
+            v = get(ring, f)
+            try:
+                arr_ = np.asarray(v, dtype=float).ravel()
+            except Exception:
+                arr_ = None
+            if arr_ is not None and arr_.size == 20:
+                vec, used = arr_, f; break
+            if v is not None and np.asarray(v, dtype=object).size == 3:   # 3 cells of region lists
+                try:
+                    lists = [np.asarray(x, dtype=float).ravel() for x in np.asarray(v, dtype=object).ravel()]
+                    if sorted(np.concatenate(lists).astype(int).tolist()) == list(range(1, 21)):
+                        vec = np.zeros(20)
+                        for k, regs in enumerate(lists, start=1):
+                            vec[regs.astype(int) - 1] = k
+                        used = f; break
+                except Exception:
+                    pass
+        if vec is None:
+            raise ValueError(f"no 20-value or 3-list field found in d.p.ring (fields {fields}); pass --ring_field")
+        print(f"  using d.p.ring.{used}")
+        ring = vec
+    ring = np.asarray(ring, dtype=float).ravel()
+    if ring.size != 20:
+        raise ValueError(f"ring map has {ring.size} values, expected 20")
+    pd.DataFrame({"region": np.arange(1, 21), "ring": ring.astype(int)}).to_csv(out / "zone_rings.csv", index=False)
+    print(f"wrote {out/'zone_rings.csv'}  rings: {pd.Series(ring.astype(int)).value_counts().sort_index().to_dict()}")
+
+
 def compare(new, old_path):
     old = pd.read_csv(old_path)
     key = ["Subject", "Eye", "Repeat"]
@@ -141,6 +189,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--compare", default=None, help="old mpod.csv to verify against")
     ap.add_argument("--demographics", default=None, help="CSV from MATLAB: writetable(d.T,'demographics_raw.csv')")
+    ap.add_argument("--ring_field", default=None, help="field of the d.p.ring struct holding the region->ring map")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     d, get = load_mat(a.mat)
@@ -169,12 +218,10 @@ def main():
     else:
         print("Del2/Amp2 not found -> ofa44.csv skipped")
 
-    p = get(d, "p")
-    ring = get(p, "ring") if p is not None else None
-    if ring is not None:
-        ring = np.asarray(ring, dtype=float).ravel()
-        pd.DataFrame({"region": np.arange(1, len(ring) + 1), "ring": ring.astype(int)}).to_csv(out / "zone_rings.csv", index=False)
-        print(f"wrote {out/'zone_rings.csv'}  rings: {pd.Series(ring.astype(int)).value_counts().sort_index().to_dict()}")
+    try:
+        write_rings(d, get, out, a.ring_field)
+    except Exception as e:  # never block the main export on the optional ring map
+        print(f"WARNING: zone_rings.csv skipped ({e}). Default rings 1-4/5-12/13-20 will be used.")
 
     if a.demographics:
         T = pd.read_csv(a.demographics)
