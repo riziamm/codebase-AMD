@@ -33,3 +33,6 @@ workflow_eval_v3.sh
 !share/
 !share/**
 reruns_pilot/
+
+# local archives / pilots (never commit)
+reruns_*/
