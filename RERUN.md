@@ -6,6 +6,11 @@ bash
 <!-- mkdir -p share/ml_tier1 -->
 cp reruns_eyegrouped/results_holdout*.csv share/ml_tier1/
 # + SHAP figures (.png) and batch summary CSVs
+
+> ⚠️ **October 2026: the original `mpod.csv` was scrambled** (wrong reshape axis order; only 3.4 % of rows had
+> features from the labelled eye). See `docs/DATA_ISSUE_2026-10.md`. Use `data/export/mpod.csv` from `src/mat_to_csv.py`.
+> All earlier outputs are archived in `share/ARCHIVE_scrambled_input/`.
+
 ```
 
 RUN experiment ML: from step 2:
