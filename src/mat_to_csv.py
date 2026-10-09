@@ -122,7 +122,18 @@ def write_rings(d, get, out, ring_field=None):
     ring = get(p, "ring") if p is not None else None
     if ring is None:
         print("d.p.ring not found -> zone_rings.csv skipped"); return
-    fields = _fields(ring)
+    if isinstance(ring, np.ndarray) and ring.dtype == object and ring.size == 3:
+        # struct ARRAY (1x3): element k holds the regions of ring k, e.g. d.p.ring(k).r
+        f = ring_field or (_fields(ring.flat[0]) or ["r"])[0]
+        lists = [np.asarray(getattr(el, f), dtype=float).ravel() for el in ring.ravel()]
+        if sorted(np.concatenate(lists).astype(int).tolist()) != list(range(1, 21)):
+            raise ValueError(f"d.p.ring(k).{f} does not cover regions 1..20 exactly once")
+        vec = np.zeros(20)
+        for k, regs in enumerate(lists, start=1):
+            vec[regs.astype(int) - 1] = k
+        print(f"d.p.ring is a 1x3 struct array; using d.p.ring(k).{f}")
+        ring = vec
+    fields = _fields(ring) if not isinstance(ring, np.ndarray) else []
     if fields:
         print(f"d.p.ring is a struct with fields: {fields}")
         cand = [ring_field] if ring_field else fields
@@ -180,7 +191,37 @@ def compare(new, old_path):
             ok &= flag == "OK "
             print(f"  {flag} {blk:6s} max|new-old| = {diff:.2e}  NaN pattern {'same' if same_nan else 'DIFFERENT'}")
     print("COMPARE:", "IDENTICAL to old CSV" if ok else "MISMATCH (see above)")
+    if not ok and not b[common].isna().all().all():
+        diagnose(a, b)
     return ok
+
+
+def diagnose(a, b):
+    """Find HOW the old CSV relates to the .mat export (row mapping, region order, sorting, scaling)."""
+    from scipy.spatial.distance import cdist
+    print("\nDIAGNOSIS (new = from .mat, old = your CSV)")
+    print(f"  {'block':6s} {'corr':>6s} {'slope':>6s} {'rows matched':>13s} {'same subj':>9s} {'same eye':>8s} "
+          f"{'same rep':>8s} {'sorted-row match':>16s} {'region perm':>11s}")
+    for blk in MPOD_STATS + ["Del", "Amp"]:
+        cs = [f"{blk}_region{z}" for z in range(1, 21)]
+        X, Y = a[cs].to_numpy(float), b[cs].to_numpy(float)
+        x, y = X.ravel(), Y.ravel(); m = np.isfinite(x) & np.isfinite(y)
+        corr = np.corrcoef(x[m], y[m])[0, 1]
+        slope = np.polyfit(x[m], y[m], 1)[0]
+        scale = np.nanstd(Y) + 1e-12
+        D = cdist(np.nan_to_num(Y), np.nan_to_num(X))           # old rows vs new rows
+        j = D.argmin(1); dmin = D[np.arange(len(Y)), j] / scale
+        hit = dmin < 1e-6
+        same = lambda col: (b[col].values[hit] == a[col].values[j[hit]]).mean() if hit.any() else np.nan
+        srt = np.nanmax(np.abs(np.sort(X, 1) - np.sort(Y, 1))) / scale < 1e-6
+        C = np.corrcoef(np.nan_to_num(X).T, np.nan_to_num(Y).T)[:20, 20:]   # new region i vs old region k
+        best = C.argmax(0)
+        perm = "identity" if (best == np.arange(20)).all() else ("permuted" if len(set(best)) == 20 and C.max(0).min() > .99 else "no 1:1")
+        print(f"  {blk:6s} {corr:6.3f} {slope:6.2f} {hit.mean():12.0%} {same('Subject'):9.0%} {same('Eye'):8.0%} "
+              f"{same('Repeat'):8.0%} {str(srt):>16s} {perm:>11s}")
+    print("  Read: rows matched 100% + same subj 100% + same eye 0%  => eyes swapped in the old CSV;")
+    print("        sorted-row match True => old CSV had zone values sorted within each feature;")
+    print("        corr ~1 but slope != 1 => old values were rescaled/normalised; corr ~0 => different source data.")
 
 
 def main():
@@ -189,7 +230,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--compare", default=None, help="old mpod.csv to verify against")
     ap.add_argument("--demographics", default=None, help="CSV from MATLAB: writetable(d.T,'demographics_raw.csv')")
-    ap.add_argument("--ring_field", default=None, help="field of the d.p.ring struct holding the region->ring map")
+    ap.add_argument("--ring_field", default=None, help="field of the d.p.ring struct holding the region list/map (default r)")
     a = ap.parse_args()
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     d, get = load_mat(a.mat)
