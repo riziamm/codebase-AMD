@@ -16,7 +16,7 @@ DATA="--data $SPLIT/train_mpod.csv $SPLIT/test_mpod.csv"
 mkdir -p "$ROOT/logs"
 python -c "import torch;print('DL GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'none (CPU)')" 2>&1 | grep "DL GPU"
 
-TASKS="${TASKS:-any advanced}"   # any = AREDS 2-4 vs 1 (paper's task); advanced = 3-4 vs 1
+TASKS="${TASKS:-any early advanced}"   # any = AREDS 2-4 vs 1 (paper task); early = 2 vs 1; advanced = 3-4 vs 1
 cpu_phase () {
   for T in $TASKS; do for G in eye subject; do for M in lr rf; do
     TAG="${G}_${T}_all_allrings"; echo "== $(date +%T) $M $TAG"
