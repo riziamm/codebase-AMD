@@ -167,7 +167,38 @@ def write_rings(d, get, out, ring_field=None):
     print(f"wrote {out/'zone_rings.csv'}  rings: {pd.Series(ring.astype(int)).value_counts().sort_index().to_dict()}")
 
 
-def compare(new, old_path):
+def layout_search(blocks4d, old):
+    """Was the old CSV a re-shaped (scrambled) version of the same 4-D arrays?  Tries every axis order
+    x C/F memory order x both reshape directions, and checks value multisets."""
+    from itertools import permutations
+    print("\nLAYOUT SEARCH (is the old CSV the same numbers, unrolled differently?)")
+    axes = ["Region", "Eye", "Subject", "Repeat"]
+    any_hit = False
+    for blk, A in blocks4d.items():
+        Y = old[[f"{blk}_region{z}" for z in range(1, 21)]].to_numpy(float)   # old file, ORIGINAL row order
+        same_values = np.allclose(np.sort(A.ravel()), np.sort(Y.ravel()), equal_nan=True)
+        hits = []
+        for p in permutations(range(4)):
+            B = np.transpose(A, p)
+            for order in ("C", "F"):
+                for how in ("rows", "cols"):
+                    M = B.reshape(116, 20, order=order) if how == "rows" else B.reshape(20, 116, order=order).T
+                    if np.allclose(M, Y, equal_nan=True):
+                        hits.append(f"np.transpose(A,{p}).reshape({'116,20' if how=='rows' else '20,116'},order='{order}')"
+                                    + (".T" if how == "cols" else "") + f"   [axes order {[axes[i] for i in p]}]")
+        any_hit |= bool(hits)
+        print(f"  {blk:6s} same multiset of values: {str(same_values):5s}  exact layout found: "
+              f"{hits[0] if hits else 'none'}")
+    if not any_hit:
+        print("  No reshape of the .mat arrays reproduces the old CSV.")
+        print("  If 'same multiset' is False -> the old CSV came from DIFFERENT data (another .mat / version).")
+        print("  If 'same multiset' is True  -> same numbers, scrambled in a way not covered here; send me the old unwrapping code.")
+    else:
+        print("  => the old CSV used the layout above. Compare it with the CORRECT unrolling (Subject -> Eye -> Repeat rows,")
+        print("     20 regions per feature): if they differ, the old features were attached to the wrong eyes/subjects.")
+
+
+def compare(new, old_path, blocks4d=None):
     old = pd.read_csv(old_path)
     key = ["Subject", "Eye", "Repeat"]
     a = new.sort_values(key).reset_index(drop=True); b = old.sort_values(key).reset_index(drop=True)
@@ -193,6 +224,8 @@ def compare(new, old_path):
     print("COMPARE:", "IDENTICAL to old CSV" if ok else "MISMATCH (see above)")
     if not ok and not b[common].isna().all().all():
         diagnose(a, b)
+        if blocks4d is not None:
+            layout_search(blocks4d, old)
     return ok
 
 
@@ -285,7 +318,8 @@ def main():
 
     if a.compare:
         print(f"\nComparing with {a.compare}:")
-        sys.exit(0 if compare(mpod, a.compare) else 1)
+        b4 = dict(zip(MPOD_STATS + ["Del", "Amp"], core))
+        sys.exit(0 if compare(mpod, a.compare, b4) else 1)
 
 
 if __name__ == "__main__":
