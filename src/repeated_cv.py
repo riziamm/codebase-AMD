@@ -81,13 +81,73 @@ def apply_task(df, task):
     return df
 
 
-def feature_columns(groups="all", rings="all"):
-    G = BASE if groups == "all" else groups.split(",")
-    Rg = ("centre", "middle", "outer") if rings == "all" else tuple(rings.split(","))
-    bad = [g for g in G if g not in BASE] + [r for r in Rg if r not in ("centre", "middle", "outer")]
+MPOD_GROUPS = BASE[:7]
+FUNC_GROUPS = ["Del", "Amp"]
+
+
+def _parse_groups(groups):
+    """'all' | comma list of BASE groups, plus optional 'coupling' and '-<group>' (leave-one-out)."""
+    toks = groups.split(",") if groups != "all" else ["all"]
+    G, coupling, drop = [], False, []
+    for t in toks:
+        if t == "all":
+            G += BASE
+        elif t == "mpod":
+            G += MPOD_GROUPS
+        elif t == "coupling":
+            coupling = True
+        elif t.startswith("-"):
+            drop.append(t[1:])
+        else:
+            G.append(t)
+    G = [g for g in dict.fromkeys(G) if g not in drop]
+    bad = [g for g in G + drop if g not in BASE]
     if bad:
-        sys.exit(f"unknown groups/rings: {bad}")
+        sys.exit(f"unknown groups: {bad}")
+    return G, coupling
+
+
+def feature_columns(groups="all", rings="all"):
+    G, _ = _parse_groups(groups)
+    Rg = ("centre", "middle", "outer") if rings == "all" else tuple(rings.split(","))
+    bad = [r for r in Rg if r not in ("centre", "middle", "outer")]
+    if bad:
+        sys.exit(f"unknown rings: {bad}")
     return [f"{b}_region{z}" for b in G for z in range(1, 21) if RING_OF[z] in Rg]
+
+
+def coupling_features(df, rings="all"):
+    """Structure-function coupling per row (one eye, one session): Spearman rho across the zones between
+    each MPOD statistic and each OFA measure (Del, Amp). Computed within the row only -> no leakage."""
+    from scipy.stats import rankdata
+    Rg = ("centre", "middle", "outer") if rings == "all" else tuple(rings.split(","))
+    zones = [z for z in range(1, 21) if RING_OF[z] in Rg]
+    out = {}
+    for s in MPOD_GROUPS:
+        S = df[[f"{s}_region{z}" for z in zones]].to_numpy(float)
+        for f in FUNC_GROUPS:
+            F = df[[f"{f}_region{z}" for z in zones]].to_numpy(float)
+            rho = np.full(len(df), np.nan)
+            for i in range(len(df)):
+                m = np.isfinite(S[i]) & np.isfinite(F[i])
+                if m.sum() >= 4:
+                    a, b = rankdata(S[i][m]), rankdata(F[i][m])
+                    if a.std() > 0 and b.std() > 0:
+                        rho[i] = np.corrcoef(a, b)[0, 1]
+            out[f"coupling_{s}_{f}"] = rho
+    return pd.DataFrame(out, index=df.index)
+
+
+def build_X(df, groups="all", rings="all"):
+    cols = feature_columns(groups, rings)
+    _, coupling = _parse_groups(groups)
+    parts = [df[cols]] if cols else []
+    if coupling:
+        parts.append(coupling_features(df, rings))
+    if not parts:
+        sys.exit("empty feature set")
+    Xdf = pd.concat(parts, axis=1)
+    return Xdf.to_numpy(float), list(Xdf.columns)
 
 
 def outer_splits(df, K, R, seed, group_by):
@@ -138,6 +198,15 @@ def make_sklearn(model, seed, rf_trees):
                                      random_state=seed, n_jobs=1)
         grid = {"clf__max_depth": [3, None], "clf__min_samples_leaf": [1, 3]}
     return Pipeline(steps + [("clf", clf)]), grid
+
+
+def fit_sklearn(model, X, y, groups, tr, seed, rf_trees):
+    """Nested tuning on training rows only; returns the refitted best pipeline."""
+    pipe, grid = make_sklearn(model, seed, rf_trees)
+    cv = EyeGroupedKFold(groups[tr], n_splits=3, random_state=seed, stratify_on=y[tr])
+    gs = GridSearchCV(pipe, grid, scoring="roc_auc", cv=cv, refit=True, n_jobs=1, error_score=0.5)
+    gs.fit(X[tr], y[tr])
+    return gs.best_estimator_
 
 
 def _skl_task(model, X, y, groups, tr, te, seed, rf_trees):
@@ -191,13 +260,13 @@ def build_dl(kind):
     return ZoneHybrid()
 
 
-def fit_predict_dl(kind, Xtr, ytr, Xte, seed, device, epochs, lr, wd, bs):
+def train_dl(kind, Xtr, ytr, seed, device, epochs, lr, wd, bs):
+    """Train a DL model on training rows only; returns (model, imputer, scaler)."""
     torch, nn = _torch()
     torch.manual_seed(seed); np.random.seed(seed)
     imp = SimpleImputer(strategy="median").fit(Xtr)
     sc = StandardScaler().fit(imp.transform(Xtr))
     A = torch.tensor(sc.transform(imp.transform(Xtr)), dtype=torch.float32, device=device)
-    B = torch.tensor(sc.transform(imp.transform(Xte)), dtype=torch.float32, device=device)
     yt = torch.tensor(ytr, dtype=torch.float32, device=device)
     model = build_dl(kind).to(device)
     pw = torch.tensor((ytr == 0).sum() / max((ytr == 1).sum(), 1), dtype=torch.float32, device=device)
@@ -215,8 +284,19 @@ def fit_predict_dl(kind, Xtr, ytr, Xte, seed, device, epochs, lr, wd, bs):
             loss = loss_fn(model(A[b]).view(-1), yt[b])
             loss.backward(); opt.step()
     model.eval()
+    return model, imp, sc
+
+
+def dl_predict(model, imp, sc, X, device):
+    torch, _ = _torch()
     with torch.no_grad():
+        B = torch.tensor(sc.transform(imp.transform(X)), dtype=torch.float32, device=device)
         return torch.sigmoid(model(B).view(-1)).cpu().numpy()
+
+
+def fit_predict_dl(kind, Xtr, ytr, Xte, seed, device, epochs, lr, wd, bs):
+    model, imp, sc = train_dl(kind, Xtr, ytr, seed, device, epochs, lr, wd, bs)
+    return dl_predict(model, imp, sc, Xte, device)
 
 
 # ------------------------------------------------------------------ CV driver
@@ -281,10 +361,10 @@ def cmd_run(a):
     if (out / "summary.json").exists() and not a.force:
         print(f"[skip] {a.model}: summary.json exists (use --force)"); return
     df = apply_task(load_data(a.data), a.task)
-    cols = feature_columns(a.groups, a.rings)
-    if a.model in DL_MODELS and len(cols) != 180:
+    X, cols = build_X(df, a.groups, a.rings)
+    if a.model in DL_MODELS and (a.groups != "all" or a.rings != "all"):
         sys.exit("hybrid models need all 180 features (--groups all --rings all)")
-    X = df[cols].to_numpy(float); y = df["yb"].to_numpy(); groups = df["eye_id"].to_numpy()
+    y = df["yb"].to_numpy(); groups = df["eye_id"].to_numpy()
     device = "cpu"
     if a.model in DL_MODELS:
         torch, _ = _torch(); device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -335,7 +415,7 @@ def cmd_run(a):
     null = np.array(null[:a.n_perm])
     p_above = (1 + (null >= t_obs).sum()) / (1 + len(null)) if len(null) else np.nan
     p_below = (1 + (null <= t_obs).sum()) / (1 + len(null)) if len(null) else np.nan
-    s = dict(model=a.model, task=a.task, groups=a.groups, rings=a.rings, n_features=len(cols), group_by=a.group_by, k=a.k, repeats=a.repeats, n_rows=len(df), n_eyes=int(df.eye_id.nunique()),
+    s = dict(model=a.model, task=a.task, groups=a.groups, rings=a.rings, n_features=len(cols), feature_names=cols, group_by=a.group_by, k=a.k, repeats=a.repeats, n_rows=len(df), n_eyes=int(df.eye_id.nunique()),
              n_subjects=int(df.Subject.nunique()), auc_mean=float(aucs.mean()),
              auc_sd_repeats=float(aucs.std(ddof=1)) if len(aucs) > 1 else 0.0,
              auc_ci_lo=float(np.percentile(boot, 2.5)), auc_ci_hi=float(np.percentile(boot, 97.5)),
@@ -363,7 +443,8 @@ def cmd_aggregate(a):
     rows = []
     for m in models:
         s = S[m]
-        verdict = ("SIGNAL" if (s["p_above"] < 0.05 and s["auc_mean"] >= 0.65)
+        verdict = ("n/a (no permutation test)" if s.get("perm_n", 0) == 0 else
+                   "SIGNAL" if (s["p_above"] < 0.05 and s["auc_mean"] >= 0.65)
                    else "BELOW CHANCE" if s["p_below"] < 0.05 else "NO DETECTABLE SIGNAL")
         rows.append(dict(model=m, task=s.get("task", "any"), groups=s.get("groups", "all"), rings=s.get("rings", "all"),
                          group_by=s["group_by"], n_eyes=s["n_eyes"], repeats=s["repeats"],

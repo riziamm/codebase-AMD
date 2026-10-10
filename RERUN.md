@@ -122,6 +122,17 @@ bash scripts/5_package_share.sh       # then git add share/ && git commit && git
 Outputs: `diagnostics/REPORT.md` + heatmap (stage x feature x ring AUCs, positive control, test-retest ICC),
 `repeated_cv/OVERVIEW.csv` (early / advanced / ring-only / functional-only / structural-only models).
 
+
+## ▶ OFA value (pre-specified) + SHAP explanations
+Plan: `docs/ANALYSIS_PLAN_OFA.md` (fixed before running). Both scripts are resumable.
+```bash
+nohup bash scripts/9_ofa_value.sh > reruns_eyegrouped/logs/ofa_value.log 2>&1 &      # CPU, ~3 h
+nohup bash scripts/10_explain.sh  > reruns_eyegrouped/logs/explain.log 2>&1 &        # CPU + GPU, ~30-60 min
+bash scripts/5_package_share.sh && bash scripts/sync.sh "ofa value + explain"
+```
+Outputs: `ofa_value/REPORT.md` + `COMPARISONS.csv` (paired dAUC), `explain/<task>_<model>/` (importance tables, stability,
+zone maps circular + square, local examples).
+
 ## 1. Frozen split (already done; repeat here only if needed)
 
 ```bash
