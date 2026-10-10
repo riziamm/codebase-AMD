@@ -133,6 +133,13 @@ bash scripts/5_package_share.sh && bash scripts/sync.sh "ofa value + explain"
 Outputs: `ofa_value/REPORT.md` + `COMPARISONS.csv` (paired dAUC), `explain/<task>_<model>/` (importance tables, stability,
 zone maps circular + square, local examples).
 
+
+## ▶ Paper 1 results pack
+```bash
+bash scripts/11_results_pack.sh        # ~2 min; tables T1-T4, figures (incl. out-of-fold ROC), RESULTS_PACK.md
+bash scripts/5_package_share.sh && bash scripts/sync.sh "results pack"
+```
+
 ## 1. Frozen split (already done; repeat here only if needed)
 
 ```bash
