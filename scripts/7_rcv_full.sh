@@ -1,6 +1,6 @@
 #!/bin/bash
 # FULL repeated nested eye-grouped CV (primary: eye-grouped; sensitivity: subject-grouped).
-# Resumable: just run it again after any interruption (finished models are skipped, permutations resume).
+# Resumable: run it again after any interruption (finished models are skipped, permutations resume).
 #   nohup bash scripts/7_rcv_full.sh > reruns_eyegrouped/logs/rcv_full.log 2>&1 &
 #   grep -a "DONE\|==" reruns_eyegrouped/logs/rcv_full.log        # progress
 # PAR=1 (default) runs CPU models and GPU models at the same time; PAR=0 runs them one after another.
