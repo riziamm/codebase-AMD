@@ -1,5 +1,5 @@
 #!/bin/bash
-# Paper 2 main analyses P2 (reliability) and P1 (functional validity). REQUIRES the plan to be signed off
+# Paper 2 main analyses P2 (visit-to-visit stability) and P1 (functional validity). REQUIRES the plan to be signed off
 # ("Status: SIGNED OFF" in docs/ANALYSIS_PLAN_PAPER2.md). CPU only, resumable. ~20-40 min with 8-16 cores.
 #   nohup bash scripts/p2_1_main.sh > reruns_paper2/logs/p2_1.log 2>&1 &
 #   grep -a "==\|DONE\|STOP\|Error" reruns_paper2/logs/p2_1.log | tail
@@ -11,8 +11,8 @@ UNS=""; [ "${ALLOW_UNSIGNED:-0}" = 1 ] && UNS="--allow_unsigned"   # synthetic t
 R="${P2_REPEATS:-20}"; NB="${P2_BOOT:-2000}"; TREES="${P2_TREES:-300}"
 NJ=$(nproc 2>/dev/null || echo 8); [ "$NJ" -gt 16 ] && NJ=16
 mkdir -p "$ROOT/logs"
-echo "== $(date +%T) P2 reliability"
-python -m src.p2_reliability --export "$EXPORT" --out "$ROOT/p2_reliability" $B44 --n_boot $NB $UNS || exit 1
+echo "== $(date +%T) P2 visit-to-visit stability"
+python -m src.p2_stability --export "$EXPORT" --out "$ROOT/p2_stability" $B44 --n_boot $NB $UNS || exit 1
 echo "== $(date +%T) P1 functional validity (run)"
 python -m src.p2_function run --export "$EXPORT" --out "$ROOT/p2_function" $B44 --repeats $R --k 5 --rf_trees $TREES --n_jobs $NJ $UNS || exit 1
 echo "== $(date +%T) P1 aggregate"

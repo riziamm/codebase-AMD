@@ -3,7 +3,9 @@
 p2_function.py: P1 of docs/ANALYSIS_PLAN_PAPER2.md. Do OFA measures explain visual acuity beyond age, sex and MPOD?
 
 DESIGN (pre-specified; change only through a dated plan amendment)
-  unit     : eye (58), features = mean of the two test sessions; outcome VAlc (primary) and VA (secondary)
+  unit     : eye (58), features = mean of first and last study visit (Repeat 1/2); outcome VAlc (primary),
+             VA (secondary). Acuity is one value per eye (visit not recorded). Sensitivity: last visit only,
+             first visit only; if conclusions differ, the last visit is primary-for-interpretation (plan 3).
   outer CV : repeated (R=20) 5-fold, SUBJECT-grouped (age/sex are subject-level; fellow eyes correlate),
              stratified on worst-eye AREDS {1, 2, 3+}; reuses src.repeated_cv.outer_splits. Same splits for
              every feature set of an outcome -> predictions are paired eye by eye.
@@ -50,12 +52,14 @@ def feature_sets(E):
     return S
 
 
-RUNS = [(o, s, "ridge") for o in OUTCOMES for s in
+# (outcome, set, model, visit)
+RUNS = [(o, s, "ridge", "mean") for o in OUTCOMES for s in
         ["AS", "AS+MPOD", "AS+MPOD+OFA", "AS+OFA", "AS+MPOD+Del", "AS+MPOD+Amp", "AS+grade", "AS+grade+OFA",
          "AS+MPOD+OFA+OFA44", "AS+MPODz", "AS+MPODz+OFAz"]] + \
-       [(o, s, "rf") for o in OUTCOMES for s in ["AS+MPOD", "AS+MPOD+OFA"]]
+       [(o, s, "rf", "mean") for o in OUTCOMES for s in ["AS+MPOD", "AS+MPOD+OFA"]] + \
+       [("VAlc", s, "ridge", v) for v in ("last", "first") for s in ["AS+MPOD", "AS+MPOD+OFA"]]
 
-# (id, role, outcome, model, set_A, set_B, question)   d = A - B
+# (id, role, outcome, model, set_A, set_B, question, visit)   d = A - B
 CONTRASTS = [
     ("P1", "PRIMARY", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "OFA adds to age+sex+MPOD for low-contrast VA"),
     ("S1", "secondary", "VA", "ridge", "AS+MPOD+OFA", "AS+MPOD", "OFA adds to age+sex+MPOD for VA"),
@@ -69,9 +73,16 @@ CONTRASTS = [
     ("S5b", "secondary", "VAlc", "ridge", "AS+MPOD+Amp", "AS+MPOD", "Amp alone adds (VAlc)"),
     ("S6a", "secondary", "VAlc", "ridge", "AS+MPOD+OFA+OFA44", "AS+MPOD+OFA", "44-region field adds to 20 (VAlc)"),
     ("S6b", "secondary", "VA", "ridge", "AS+MPOD+OFA+OFA44", "AS+MPOD+OFA", "44-region field adds to 20 (VA)"),
-    ("SENS1", "sensitivity", "VAlc", "rf", "AS+MPOD+OFA", "AS+MPOD", "P1 with random forest"),
-    ("SENS2", "sensitivity", "VAlc", "ridge", "AS+MPODz+OFAz", "AS+MPODz", "P1 at full 20-region resolution"),
+    ("SENS1", "sensitivity", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "P1, last visit only", "last"),
+    ("SENS2", "sensitivity", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "P1, first visit only", "first"),
+    ("SENS3", "sensitivity", "VAlc", "rf", "AS+MPOD+OFA", "AS+MPOD", "P1 with random forest"),
+    ("SENS4", "sensitivity", "VAlc", "ridge", "AS+MPODz+OFAz", "AS+MPODz", "P1 at full 20-region resolution"),
 ]
+CONTRASTS = [c if len(c) == 8 else c + ("mean",) for c in CONTRASTS]
+
+
+def run_dir(out, outcome, sname, kind, visit):
+    return Path(out) / outcome / sname.replace("+", "_") / (kind if visit == "mean" else f"{kind}_{visit}")
 
 
 # ------------------------------------------------------------------ models
@@ -144,25 +155,27 @@ def load_run(folder):
 # ------------------------------------------------------------------ commands
 def cmd_run(a):
     st = require_signoff(a.allow_unsigned)
-    E, info = eye_table(a.export, a.bands44)
+    Ev = {v: eye_table(a.export, a.bands44, visit=v) for v in ("mean", "first", "last")}
+    E, info = Ev["mean"]
     S = feature_sets(E)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)
     write_run_info(out, a, a.export, extra=dict(data_info=info, signoff=st, sets={k: len(v) for k, v in S.items()}))
     log(f"eyes={info['n_eyes']} subjects={info['n_subjects']} sets={ {k: len(v) for k, v in S.items()} }")
-    for outcome, sname, kind in RUNS:
+    for outcome, sname, kind, visit in RUNS:
+        tag = f"{outcome}/{sname}/{kind}/visit={visit}"
         if sname not in S:
-            log(f"skip {outcome}/{sname}/{kind}: set unavailable (no ofa44.csv)"); continue
-        f = out / outcome / sname.replace("+", "_") / kind
+            log(f"skip {tag}: set unavailable (no ofa44.csv)"); continue
+        f = run_dir(out, outcome, sname, kind, visit)
         if (f / "summary.json").exists():
-            log(f"skip {outcome}/{sname}/{kind} (done)"); continue
+            log(f"skip {tag} (done)"); continue
         f.mkdir(parents=True, exist_ok=True)
-        log(f"== {outcome} / {sname} ({len(S[sname])} features) / {kind}")
-        d, y, P = run_one(E, S[sname], outcome, kind, a.repeats, a.k, a.seed, a.rf_trees, a.n_jobs)
+        log(f"== {tag} ({len(S[sname])} features)")
+        d, y, P = run_one(Ev[visit][0], S[sname], outcome, kind, a.repeats, a.k, a.seed, a.rf_trees, a.n_jobs)
         subj_code = pd.factorize(d["Subject"])[0]                      # pseudonymous, HPC-only file
         pd.DataFrame(dict(cv_rep=np.repeat(np.arange(len(P)), len(y)), row_index=np.tile(np.arange(len(y)), len(P)),
                           subject_code=np.tile(subj_code, len(P)), y_true=np.tile(y, len(P)), y_pred=P.ravel())) \
             .to_csv(f / "oof_reg.csv", index=False)
-        summ = dict(outcome=outcome, set=sname, model=kind, n_features=len(S[sname]), n_eyes=len(y),
+        summ = dict(outcome=outcome, set=sname, model=kind, visit=visit, n_features=len(S[sname]), n_eyes=len(y),
                     n_subjects=int(d.Subject.nunique()), repeats=a.repeats, k=a.k, seed=a.seed,
                     **{m: float(fn(y, P).mean()) for m, fn in METRICS.items()})
         json.dump(summ, open(f / "summary.json", "w"), indent=1)
@@ -174,7 +187,8 @@ def cmd_aggregate(a):
     out = Path(a.out)
     runs = {}
     for js in sorted(out.glob("*/*/*/summary.json")):
-        s = json.load(open(js)); runs[(s["outcome"], s["set"], s["model"])] = (s, js.parent)
+        s = json.load(open(js)); s.setdefault("visit", "mean")
+        runs[(s["outcome"], s["set"], s["model"], s["visit"])] = (s, js.parent)
     if not runs:
         raise SystemExit("no finished runs")
     rows = []
@@ -182,7 +196,7 @@ def cmd_aggregate(a):
     for key, (s, folder) in sorted(runs.items()):
         R = cache.setdefault(key, load_run(folder))
         bi = boot_index(R["subj"], a.n_boot, a.seed)
-        row = dict(outcome=s["outcome"], set=s["set"], model=s["model"], n_features=s["n_features"],
+        row = dict(outcome=s["outcome"], set=s["set"], model=s["model"], visit=s["visit"], n_features=s["n_features"],
                    n_eyes=s["n_eyes"], n_subjects=s["n_subjects"])
         for m, fn in METRICS.items():
             bs = np.array([fn(R["y"][i], R["P"][:, i]).mean() for i in bi])
@@ -192,18 +206,18 @@ def cmd_aggregate(a):
     summ.to_csv(out / "SUMMARY.csv", index=False)
 
     crow = []
-    for cid, role, outcome, kind, A, B, qtxt in CONTRASTS:
-        ka, kb = (outcome, A, kind), (outcome, B, kind)
+    for cid, role, outcome, kind, A, B, qtxt, visit in CONTRASTS:
+        ka, kb = (outcome, A, kind, visit), (outcome, B, kind, visit)
         if ka not in runs or kb not in runs:
-            crow.append(dict(id=cid, role=role, question=qtxt, outcome=outcome, model=kind, set_A=A, set_B=B,
-                             conclusion="NOT RUN")); continue
+            crow.append(dict(id=cid, role=role, question=qtxt, outcome=outcome, model=kind, visit=visit, set_A=A,
+                             set_B=B, conclusion="NOT RUN")); continue
         RA, RB = cache[ka], cache[kb]
         if not (np.array_equal(RA["row"], RB["row"]) and np.allclose(RA["y"], RB["y"])
                 and np.array_equal(RA["subj"], RB["subj"])):
             raise SystemExit(f"{cid}: runs not paired")
         Rn = min(len(RA["P"]), len(RB["P"]))
         bi = boot_index(RA["subj"], a.n_boot, a.seed + 1)
-        row = dict(id=cid, role=role, question=qtxt, outcome=outcome, model=kind, set_A=A, set_B=B,
+        row = dict(id=cid, role=role, question=qtxt, outcome=outcome, model=kind, visit=visit, set_A=A, set_B=B,
                    n_eyes=len(RA["y"]))
         for m, fn in METRICS.items():
             dobs = (fn(RA["y"], RA["P"][:Rn]) - fn(RB["y"], RB["P"][:Rn])).mean()
@@ -216,16 +230,28 @@ def cmd_aggregate(a):
         crow.append(row)
     C = pd.DataFrame(crow)
     C.to_csv(out / "CONTRASTS.csv", index=False)
+    # pre-specified visit rule (plan section 3): mean of visits is primary; if first/last conclusions differ from it,
+    # the last visit is primary-for-interpretation and the uncertainty is flagged
+    cc = C.set_index("id")["conclusion"]
+    vis = [cc.get(k, "NOT RUN") for k in ("P1", "SENS1", "SENS2")]
+    if "NOT RUN" in vis:
+        visit_rule = "visit sensitivity incomplete"
+    elif len(set(vis)) == 1:
+        visit_rule = f"CONSISTENT across mean/last/first visit: {vis[0]}"
+    else:
+        visit_rule = (f"DISAGREE (mean: {vis[0]}; last: {vis[1]}; first: {vis[2]}) -> report LAST visit as "
+                      f"primary-for-interpretation and flag the uncertainty")
     pd.set_option("display.width", 250); pd.set_option("display.max_colwidth", 48)
-    show = [c for c in ["id", "role", "outcome", "model", "set_A", "set_B", "n_eyes", "R2_A", "R2_B", "dR2", "dR2_lo",
+    show = [c for c in ["id", "role", "outcome", "model", "visit", "set_A", "set_B", "n_eyes", "R2_A", "R2_B", "dR2", "dR2_lo",
                         "dR2_hi", "drho", "drho_lo", "drho_hi", "conclusion"] if c in C.columns]
     md = ["# Paper 2, P1: functional validity (out-of-fold, subject-grouped repeated CV)", "",
           "R2 = out-of-fold R^2 (can be < 0); rho = Spearman(prediction, observed); 95% CI = subject-clustered "
           "bootstrap.", "Decision (plan): P1 is the only confirmatory test; all others are reported with CIs and no "
           "significance claims.", "",
           "## Contrasts (d = A - B, paired)", "~~~", C[show].round(3).to_string(index=False), "~~~", "",
+          f"**Visit rule (pre-specified):** {visit_rule}", "",
           "## All runs", "~~~",
-          summ[["outcome", "set", "model", "n_features", "n_eyes", "R2", "R2_lo", "R2_hi", "rho", "rho_lo", "rho_hi",
+          summ[["outcome", "set", "model", "visit", "n_features", "n_eyes", "R2", "R2_lo", "R2_hi", "rho", "rho_lo", "rho_hi",
                 "MAE"]].round(3).to_string(index=False), "~~~"]
     (out / "REPORT.md").write_text("\n".join(md) + "\n")
     print("\n".join(md))

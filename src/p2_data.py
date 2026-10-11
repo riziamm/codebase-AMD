@@ -7,9 +7,11 @@ Inputs (from src.mat_to_csv, verified export only, never reruns_SCRAMBLED_archiv
   ofa44.csv         88 features [Del2, Amp2] x region1..44 + Subject, Repeat, Eye, Y
   demographics.csv  Subject, Eye, Repeat, Age, Sex, VA, VAlc
   zone_rings.csv    region -> ring (1 centre, 2 middle, 3 outer); default 1-4 / 5-12 / 13-20
-  ofa44_bands.csv   OPTIONAL region -> band for the 44-region field (fixed in the plan before running)
+  ofa44_layout.csv  OPTIONAL 44-region layout from MATLAB d.p(1).pattern(1): region, ring, sector, ecc_mid, ...
+                    (only `ring` is used -> bands 'ring1'..; a simple region,band file is also accepted)
 
-Eye level = mean of the two test sessions (pre-specified). Column names of summaries use '|' (e.g. 'Del|centre')
+Repeat 1 = FIRST study visit, Repeat 2 = LAST visit (interval unknown; NOT test-retest sessions).
+Eye level = mean of both visits (pre-specified primary); visit="first"/"last" for sensitivity analyses. Column names of summaries use '|' (e.g. 'Del|centre')
 so that no output ever carries '*_region*' feature columns.
 """
 import hashlib, json, subprocess, sys, time
@@ -63,13 +65,17 @@ def load_rings(export_dir):
 
 
 def load_bands44(path):
-    """Optional region -> band map for the 44 regions. Returns None if no file."""
+    """Optional region -> band for the 44 regions, from ofa44_layout.csv (column `ring` -> 'ring<k>') or a
+    region,band file. Rings only: orientation-free, so left/right mirroring (regionfliplr/ud) does not matter."""
     if not path:
         return None
     b = pd.read_csv(path)
-    if set(b.region.astype(int)) != set(range(1, 45)):
+    if "region" not in b or not ({"ring", "band"} & set(b.columns)):
+        sys.exit(f"{path}: needs columns region and ring (or band)")
+    if sorted(b.region.astype(int)) != list(range(1, 45)):
         sys.exit(f"{path}: must list regions 1..44 exactly once")
-    return dict(zip(b.region.astype(int), b.band.astype(str)))
+    lab = ("ring" + b.ring.astype(int).astype(str)) if "ring" in b else b.band.astype(str)
+    return dict(zip(b.region.astype(int), lab))
 
 
 def encode_sex(s):
@@ -124,10 +130,18 @@ def ofa44_summaries(df, bands=None):
     return pd.DataFrame(out, index=df.index)
 
 
-def eye_table(export_dir, bands44_path=None):
-    """One row per eye (58): session means of all features + ring/band summaries + demographics.
-    Returns (E, info). E keeps Subject/Eye only for grouping inside the HPC; never write E to share/."""
+VISITS = {"mean": (1, 2), "first": (1,), "last": (2,)}
+
+
+def eye_table(export_dir, bands44_path=None, visit="mean"):
+    """One row per eye (58): features of the chosen visit(s) (mean = average of first and last visit) + ring/band
+    summaries + demographics. Returns (E, info). E keeps Subject/Eye for grouping on the HPC only; never share E."""
+    if visit not in VISITS:
+        sys.exit(f"visit must be one of {list(VISITS)}")
     mp, o44 = load_sessions(export_dir)
+    keep = mp.Repeat.isin(VISITS[visit]).values
+    mp = mp[keep].reset_index(drop=True)
+    o44 = o44[keep].reset_index(drop=True) if o44 is not None else None
     ring = load_rings(export_dir)
     bands = load_bands44(bands44_path)
     sess = pd.concat([mp, ring_summaries(mp, ring)], axis=1)
@@ -141,7 +155,8 @@ def eye_table(export_dir, bands44_path=None):
     E["Sex01"], sexmap = encode_sex(E["Sex"])
     E["eye_id"] = E["Subject"].astype(str) + "_" + E["Eye"].astype(str)
     E = E.sort_values(["Subject", "Eye"]).reset_index(drop=True)
-    info = dict(n_eyes=len(E), n_subjects=int(E.Subject.nunique()), sessions_per_eye=sorted(set(n_sess.tolist())),
+    info = dict(visit=visit, n_eyes=len(E), n_subjects=int(E.Subject.nunique()),
+                visits_per_eye=sorted(set(n_sess.tolist())),
                 areds_per_eye={int(k): int(v) for k, v in E.Y.value_counts().sort_index().items()},
                 ring_map_default=(ring == DEFAULT_RING), bands44=sorted(set(bands.values())) if bands else None,
                 sex_coding={str(k): v for k, v in sexmap.items()}, has_ofa44=o44 is not None)

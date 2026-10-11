@@ -53,7 +53,10 @@ _p2_main() {
   for f in "$MAIN/data/demographics_raw.csv" "$MAIN/demographics_raw.csv" "$MAIN/data/export/demographics_raw.csv"; do
     [ -f "$f" ] && export RAW="$f" && break
   done
-  [ -f "$MAIN/data/export/ofa44_bands.csv" ] && export BANDS44="$MAIN/data/export/ofa44_bands.csv"
+  unset BANDS44
+  for f in "$MAIN/data/export/ofa44_layout.csv" "$MAIN/data/ofa44_layout.csv" "$MAIN/ofa44_layout.csv"; do
+    [ -f "$f" ] && export BANDS44="$f" && break
+  done
   export CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"   # RTX A6000
   mkdir -p reruns_paper2/logs
 
@@ -76,6 +79,7 @@ _p2_main() {
   echo "                  python : $(python -c 'import sys;print(sys.version.split()[0])') (conda: $CONDA_DEFAULT_ENV)"
   echo "                  EXPORT : $EXPORT $( [ -f "$EXPORT/demographics.csv" ] && echo '[demographics OK]' || echo '[demographics.csv MISSING]')"
   echo "                  RAW    : ${RAW:-not found (S0 visit counts will be skipped)}"
+  echo "                  LAYOUT : ${BANDS44:-ofa44_layout.csv not found (44-region rings unavailable)}"
   echo "                  plan   : $(grep -m1 -o '^\*\*Status:[^*]*' docs/ANALYSIS_PLAN_PAPER2.md | tr -d '*')"
   echo "-----------------------------------------------------------------"
 }

@@ -96,7 +96,7 @@ class Packager:
             json.dump(data, open(dst, "w"), indent=1)
         elif suf == ".csv":
             pred = "preds_holdout" in src.parts
-            ok, why = csv_ok(src, pred_mode=pred, max_rows=2000 if (set(src.parts) & {"diagnostics", "explain", "ofa_value", "results_pack", "p2_baseline", "p2_reliability", "p2_function"}) else 200)
+            ok, why = csv_ok(src, pred_mode=pred, max_rows=2000 if (set(src.parts) & {"diagnostics", "explain", "ofa_value", "results_pack", "p2_baseline", "p2_stability", "p2_function"}) else 200)
             if not ok:
                 self.skipped.append((str(src), why)); return
             shutil.copy2(src, dst)
@@ -146,7 +146,7 @@ def main():
             if f.suffix.lower() in {".csv", ".md", ".png", ".json"}:
                 P.add(f, root / sub, sub)
     # Paper 2 (docs/ANALYSIS_PLAN_PAPER2.md): aggregates only; row-level oof*.csv NEVER leave the HPC
-    for sub in ("p2_baseline", "p2_reliability"):
+    for sub in ("p2_baseline", "p2_stability"):
         for f in (root / sub).rglob("*"):
             if f.suffix.lower() in {".csv", ".md", ".png", ".json"} and not f.name.startswith("oof"):
                 P.add(f, root / sub, sub)

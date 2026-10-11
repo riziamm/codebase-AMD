@@ -5,9 +5,9 @@ set -eu
 T=$(mktemp -d /tmp/p2test.XXXX); echo "workdir $T"
 python tests/make_synthetic_mat.py --out $T/syn --mode signal --seed 1
 python -m src.mat_to_csv --mat $T/syn/synthetic.mat --out $T/export --demographics $T/syn/demographics_raw.csv
-export EXPORT=$T/export ROOT=$T/reruns_paper2 RAW=$T/syn/demographics_raw.csv BANDS44=$T/syn/ofa44_bands.csv
+export EXPORT=$T/export ROOT=$T/reruns_paper2 RAW=$T/syn/demographics_raw.csv BANDS44=$T/syn/ofa44_layout.csv
 bash scripts/p2_0_baseline.sh | tail -3
-ALLOW_UNSIGNED=1 P2_REPEATS=3 P2_BOOT=200 P2_TREES=60 bash scripts/p2_1_main.sh | grep -a "==\|DONE\|PRIMARY"
+ALLOW_UNSIGNED=1 P2_REPEATS=3 P2_BOOT=200 P2_TREES=60 bash scripts/p2_1_main.sh | grep -a "==\|DONE\|PRIMARY\|Visit rule"
 python -m src.package_share --root $ROOT --out $T/share_test | tail -2
 echo "files packaged:"; find $T/share_test -type f | sed "s|$T/share_test/||" | sort | head -40
 if find $T/share_test -name "oof*" | grep -q .; then echo "FAIL: row-level file packaged"; exit 1; fi

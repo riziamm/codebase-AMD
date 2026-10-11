@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
-p2_reliability.py: P2 of docs/ANALYSIS_PLAN_PAPER2.md. Test-retest reliability of OFA (20 and 44 regions) vs MPOD.
+p2_stability.py: P2 of docs/ANALYSIS_PLAN_PAPER2.md. VISIT-TO-VISIT STABILITY (first vs last study visit) of OFA
+(20 and 44 regions) and MPOD. Descriptive only.
 
-ESTIMANDS (per measure = feature group x ring mean; session 1 vs session 2 of the same eye; n = 58 eyes)
-  ICC(2,1)  two-way random, absolute agreement, single measure (src.diagnostics.icc21, reused)
-  Sw        within-eye SD = sqrt(sum(d^2) / 2n), d = session2 - session1
-  RC        repeatability coefficient = 2.77 Sw (95% of test-retest differences lie within +/- RC)
-  bias      mean(d) (learning/fatigue effect), with 95% LoA = bias +/- 1.96 SD(d)
-  RC/SDb    RC relative to the between-eye SD of eye means (scale-free; < 1 = change detectable within the
-            spread of the cohort)
-  per zone  ICC of every single zone, summarised as median [IQR] and % zones with ICC >= 0.75
-STRATA    all eyes (primary), AREDS 1 and AREDS 2-4 (secondary)
-CIs       subject-clustered bootstrap (B=2000; both eyes of a subject resampled together), percentile
-CONTRASTS dICC = ICC(OFA measure) - ICC(MPOD mean), same ring, same bootstrap draws (paired)
+NOT test-retest reliability: Repeat 1 = first visit, Repeat 2 = last visit (V1+V4 / V1+V3 / V1+V2), interval
+unknown (months to ~2 years). Every agreement statistic = measurement noise + true change; no device-reliability
+claim is made from it (plan section 4).
 
-  python -m src.p2_reliability --export data/export --out reruns_paper2/p2_reliability [--bands44 f.csv]
-Outputs (aggregates only): reliability_measures.csv, reliability_zones.csv, reliability_contrasts.csv,
+ESTIMANDS (per measure = feature group x ring mean, or 44-region ring; n = 58 eyes)
+  ICC(2,1)     two-way random, absolute agreement, single measure (src.diagnostics.icc21, reused)
+  Sw           within-eye SD across visits = sqrt(sum(d^2) / 2n), d = last - first
+  SC95         visit-to-visit stability coefficient = 2.77 Sw (95% of first-to-last differences lie within)
+  mean_change  mean(d) with CI, and 95% limits = mean_change +/- 1.96 SD(d)
+  SC95/SDb     SC95 relative to the between-eye SD of eye means (scale-free)
+  per zone     ICC of every zone: median [IQR] and % zones with ICC >= 0.75
+STRATA    all eyes; AREDS 1; AREDS 2; AREDS 3-4  (mean_change by grade = descriptive first-to-last change)
+CIs       subject-clustered bootstrap (B=2000), percentile
+CONTRASTS dICC = ICC(OFA measure) - ICC(MPOD mean), same ring, same draws (descriptive)
+
+  python -m src.p2_stability --export data/export --out reruns_paper2/p2_stability [--bands44 ofa44_layout.csv]
+Outputs (aggregates only): stability_measures.csv, stability_zones.csv, stability_contrasts.csv,
                            figures/icc_forest.png, REPORT.md, run_info.json
 """
 import argparse
@@ -44,9 +48,9 @@ def stats_one(x1, x2):
     d = x2 - x1
     sw = np.sqrt((d ** 2).sum() / (2 * len(d)))
     sdb = np.std((x1 + x2) / 2, ddof=1)
-    return dict(n=int(m.sum()), ICC=icc21(x1, x2), Sw=sw, RC=2.77 * sw, bias=d.mean(),
-                LoA_lo=d.mean() - 1.96 * d.std(ddof=1), LoA_hi=d.mean() + 1.96 * d.std(ddof=1),
-                SD_between=sdb, RC_over_SDb=2.77 * sw / sdb if sdb > 0 else np.nan)
+    return dict(n=int(m.sum()), ICC=icc21(x1, x2), Sw=sw, SC95=2.77 * sw, mean_change=d.mean(),
+                limits_lo=d.mean() - 1.96 * d.std(ddof=1), limits_hi=d.mean() + 1.96 * d.std(ddof=1),
+                SD_between=sdb, SC95_over_SDb=2.77 * sw / sdb if sdb > 0 else np.nan)
 
 
 def boot_draws(subj, B, seed):
@@ -68,7 +72,7 @@ def forest(T, path):
         ax.axvline(v, color="0.8", lw=0.8, ls="--")
     ax.set_yticks(yy); ax.set_yticklabels(t.measure, fontsize=6.5)
     ax.set_xlabel("ICC(2,1), 95% CI (subject-clustered bootstrap)"); ax.set_xlim(0, 1)
-    ax.set_title("Test-retest reliability (red: OFA, blue: MPOD)", fontsize=9)
+    ax.set_title("Visit-to-visit stability, first vs last visit (red: OFA, blue: MPOD)", fontsize=9)
     fig.tight_layout(); fig.savefig(path, dpi=200); plt.close(fig)
 
 
@@ -105,14 +109,14 @@ def main():
 
     X1, X2, Y, subj = paired_sessions(sess, measures)
     log(f"eyes with both sessions: {len(Y)}  subjects: {len(np.unique(subj))}  measures: {len(measures)}")
-    strata = {"all": np.ones(len(Y), bool), "AREDS 1": Y == 1, "AREDS 2-4": Y >= 2}
+    strata = {"all": np.ones(len(Y), bool), "AREDS 1": Y == 1, "AREDS 2": Y == 2, "AREDS 3-4": Y >= 3}
     rows, draws_icc = [], {}
     for sname, m in strata.items():
         bi = boot_draws(subj[m], a.n_boot, a.seed)
         for j, meas in enumerate(measures):
             x1, x2 = X1[m, j], X2[m, j]
             r = stats_one(x1, x2)
-            bs = {k: [] for k in ("ICC", "RC", "bias")}
+            bs = {k: [] for k in ("ICC", "SC95", "mean_change")}
             for i in bi:
                 s = stats_one(x1[i], x2[i])
                 for k in bs:
@@ -124,7 +128,7 @@ def main():
             rows.append(dict(stratum=sname, measure=meas, **r))
         log(f"   stratum {sname}: n={int(m.sum())} done")
     T = pd.DataFrame(rows)
-    T.to_csv(out / "reliability_measures.csv", index=False)
+    T.to_csv(out / "stability_measures.csv", index=False)
 
     # per-zone ICC (point estimates), summarised per group x ring / band
     Z1, Z2, _, _ = paired_sessions(sess, sorted({c for v in zone_cols.values() for c in v}))
@@ -136,7 +140,7 @@ def main():
                        zone_ICC_q25=np.nanpercentile(icc, 25), zone_ICC_q75=np.nanpercentile(icc, 75),
                        pct_zones_ICC_ge_075=100 * np.nanmean(icc >= 0.75)))
     ZT = pd.DataFrame(zr)
-    ZT.to_csv(out / "reliability_zones.csv", index=False)
+    ZT.to_csv(out / "stability_zones.csv", index=False)
 
     # pre-specified paired contrasts vs the MPOD reference (same ring, same draws)
     cr = []
@@ -149,26 +153,30 @@ def main():
         dd = draws_icc[A] - draws_icc[B]
         lo, hi = np.nanpercentile(dd, [2.5, 97.5])
         cr.append(dict(measure_A=A, measure_B=B, dICC=d_obs, lo=lo, hi=hi,
-                       conclusion="A more reliable" if lo > 0 else "B more reliable" if hi < 0 else "no difference detected"))
+                       conclusion="A more stable" if lo > 0 else "B more stable" if hi < 0 else "no difference detected"))
     CT = pd.DataFrame(cr)
-    CT.to_csv(out / "reliability_contrasts.csv", index=False)
+    CT.to_csv(out / "stability_contrasts.csv", index=False)
     forest(T, out / "figures" / "icc_forest.png")
 
     pd.set_option("display.width", 250)
-    ta = T[T.stratum == "all"][["measure", "n", "ICC", "ICC_lo", "ICC_hi", "RC", "RC_lo", "RC_hi", "bias", "bias_lo",
-                                "bias_hi", "RC_over_SDb"]]
-    md = ["# Paper 2, P2: test-retest reliability (session 1 vs 2, eye level)", "",
-          f"eyes={len(Y)}, subjects={len(np.unique(subj))}, bootstrap B={a.n_boot} (subject-clustered)", "",
-          "## Ring-mean measures, all eyes", "~~~", ta.round(3).to_string(index=False), "~~~", "",
+    ta = T[T.stratum == "all"][["measure", "n", "ICC", "ICC_lo", "ICC_hi", "SC95", "SC95_lo", "SC95_hi",
+                                "mean_change", "mean_change_lo", "mean_change_hi", "SC95_over_SDb"]]
+    chg = T.assign(change_CI=T.apply(lambda r: f"{r.mean_change:+.3f} [{r.mean_change_lo:+.3f}, {r.mean_change_hi:+.3f}]",
+                                     axis=1)).pivot(index="measure", columns="stratum", values="change_CI")
+    md = ["# Paper 2, P2: visit-to-visit stability (first vs last study visit, eye level; DESCRIPTIVE)", "",
+          "Not test-retest: the visit interval is unknown (months to ~2 years). ICC and SC95 = measurement noise + "
+          "true change.", f"eyes={len(Y)}, subjects={len(np.unique(subj))}, bootstrap B={a.n_boot} (subject-clustered)",
+          "", "## Ring-mean measures, all eyes", "~~~", ta.round(3).to_string(index=False), "~~~", "",
           "## Paired contrasts vs MPOD mean (same ring)", "~~~", CT.round(3).to_string(index=False), "~~~", "",
           "## Per-zone ICC", "~~~", ZT.round(3).to_string(index=False), "~~~", "",
-          "## By stratum (ICC [95% CI])", "~~~",
+          "## ICC [95% CI] by AREDS stratum", "~~~",
           T.assign(ICC_CI=T.apply(lambda r: f"{r.ICC:.2f} [{r.ICC_lo:.2f}, {r.ICC_hi:.2f}]", axis=1))
-           .pivot(index="measure", columns="stratum", values="ICC_CI").reindex(measures).to_string(), "~~~",
-          "", "Figure: figures/icc_forest.png"]
+           .pivot(index="measure", columns="stratum", values="ICC_CI").reindex(measures).to_string(), "~~~", "",
+          "## Mean first-to-last change [95% CI] by AREDS stratum (descriptive; interval and grade timing unknown)",
+          "~~~", chg.reindex(measures).to_string(), "~~~", "", "Figure: figures/icc_forest.png"]
     (out / "REPORT.md").write_text("\n".join(md) + "\n")
     print("\n".join(md))
-    log("DONE p2_reliability")
+    log("DONE p2_stability")
 
 
 if __name__ == "__main__":

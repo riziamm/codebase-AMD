@@ -7,7 +7,7 @@ Writes
                                  sevs (29x2), p.ring (1x3 struct array, field r)
   <out>/demographics_raw.csv     same columns as writetable(d.T): SbjID, Age, Sex, VaLE, VaRE, VaLcLE, VaLcRE,
                                  AREDSsevL, AREDSsevR, VisitN, VisitLast   (SbjID is fake)
-  <out>/ofa44_bands.csv          example region -> band map for the 44-region field (FAKE layout, test only)
+  <out>/ofa44_layout.csv         44-region layout in the format of d.p(1).pattern(1) export (FAKE values, test only)
 
 AREDS per eye = 26 / 15 / 10 / 7 (as in the real data). --mode signal plants an OFA -> low-contrast VA effect;
 --mode null has none (used to check that the pipeline does not invent one).
@@ -95,9 +95,14 @@ def main():
                           VisitLast=(pd.Timestamp("2018-10-01") + pd.to_timedelta(rng.integers(0, 800, S), "D"))
                           .strftime("%d-%b-%Y")))   # same format as the real d.T (dd-Mon-yyyy)
     T.to_csv(out / "demographics_raw.csv", index=False)
-    pd.DataFrame(dict(region=np.arange(1, 45), band=np.where(np.arange(1, 45) <= 16, "central", "peripheral"))) \
-        .to_csv(out / "ofa44_bands.csv", index=False)
-    print(f"wrote {out}/synthetic.mat, demographics_raw.csv, ofa44_bands.csv  (mode={a.mode}, seed={a.seed})")
+    ring44 = np.repeat([1, 2, 3, 4, 5], [4, 8, 8, 12, 12])                       # FAKE 44-region layout
+    sector = np.concatenate([np.arange(1, n + 1) for n in (4, 8, 8, 12, 12)])
+    ecc = np.array([1.75, 4, 7, 11, 15])[ring44 - 1]
+    ang = np.concatenate([(np.arange(n) + .5) * 360 / n for n in (4, 8, 8, 12, 12)])
+    pd.DataFrame(dict(region=np.arange(1, 45), ring=ring44, sector=sector, ecc_mid=ecc, angle_mid=ang,
+                      x_centre=np.round(ecc * np.cos(np.radians(ang)), 4),
+                      y_centre=np.round(ecc * np.sin(np.radians(ang)), 4))).to_csv(out / "ofa44_layout.csv", index=False)
+    print(f"wrote {out}/synthetic.mat, demographics_raw.csv, ofa44_layout.csv  (mode={a.mode}, seed={a.seed})")
 
 
 if __name__ == "__main__":
