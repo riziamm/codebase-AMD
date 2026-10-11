@@ -1,0 +1,48 @@
+{
+ "time": "2026-10-11 22:59:29",
+ "git_commit": "270e1f69d64eda0d8316bcf0f2c801987fca651a",
+ "plan_sha256": "101825351c2979266e44b29c5b1c7eec82bb011585c3f6908092b1f3f5249aad",
+ "status": "DRAFT, not signed off.",
+ "signed_off": false,
+ "python": "3.8.20",
+ "args": {
+  "export": "/home/u5499379/projects/ardes/codebase-AMD/codebase-AMD/data/export",
+  "out": "reruns_paper2/p2_baseline",
+  "raw": "demographics_raw.csv",
+  "bands44": null,
+  "n_boot": 2000,
+  "seed": 2027
+ },
+ "input_sha256": {
+  "demographics.csv": "6b4299e73340e797d1d2c8b7c111d17e4b44fd5bdbf9b6d6a71af5aa9016c79e",
+  "mpod.csv": "c962b83e7fb5b241d35cf576d452327c315aa311cfbb82a29ad5d7c064a0b39a",
+  "ofa44.csv": "8b962fb1e6a53f7a5ae8c1d989f29cc7a218141a8821d03514c2eb74f0cd7bdc",
+  "zone_rings.csv": "ab41907cf27ece2bb4c56f806a39a0c6e6cf1a3689805da5313fea8ef43a3aeb"
+ },
+ "versions": {
+  "numpy": "1.24.4",
+  "pandas": "2.0.3",
+  "sklearn": "1.3.0",
+  "scipy": "1.10.1"
+ },
+ "data_info": {
+  "n_eyes": 58,
+  "n_subjects": 29,
+  "sessions_per_eye": [
+   2
+  ],
+  "areds_per_eye": {
+   "1": 26,
+   "2": 15,
+   "3": 10,
+   "4": 7
+  },
+  "ring_map_default": true,
+  "bands44": null,
+  "sex_coding": {
+   "1": 0,
+   "2": 1
+  },
+  "has_ofa44": true
+ }
+}
