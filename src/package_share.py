@@ -141,7 +141,7 @@ def main():
     for f in (root / "diagnostics").rglob("*"):
         if f.suffix.lower() in {".csv", ".md", ".png", ".json"}:
             P.add(f, root / "diagnostics", "diagnostics")
-    for sub in ("ofa_value", "explain", "results_pack", "age_check"):
+    for sub in ("ofa_value", "explain", "results_pack", "age_check", "calibration"):
         for f in (root / sub).rglob("*"):
             if f.suffix.lower() in {".csv", ".md", ".png", ".json"}:
                 P.add(f, root / sub, sub)

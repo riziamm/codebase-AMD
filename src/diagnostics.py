@@ -9,7 +9,7 @@ A  Stage-specific direction maps: AUC of AREDS-k vs AREDS-1 (k = 2, 3, 4, and 2-
    Plus Spearman rho of each feature-group x ring with AREDS grade 1-4 (monotonic trend).
 B  Positive control (published OFA result, Rai et al. 2022): eye-level worst/mean OFA total deviation
    (Del max/mean, Amp min/mean) for each contrast.
-C  Test-retest reliability: ICC(2,1) (absolute agreement) between Repeat 1 and 2, per feature-group x ring;
+C  Visit-to-visit stability: ICC(2,1) (absolute agreement) between the first and last study visit (NOT test-retest), per feature-group x ring;
    fellow-eye Spearman correlation per feature-group.
 Optional --ofa44: same as A/B for the 44-region wider-field OFA data (Del2/Amp2).
 
@@ -227,7 +227,7 @@ def main():
            "```", rev[["early (2 vs 1)", "advanced (4 vs 1)"]].round(3).to_string() if len(rev) else "none", "```",
            "", "## B. Positive control: OFA total deviations", "```",
            Bt[["contrast", "feature", "AUC", "lo", "hi", "ci_excludes_05"]].round(3).to_string(index=False), "```",
-           "", "## C. Test-retest reliability ICC(2,1)  (<0.5 poor, 0.5-0.75 moderate, 0.75-0.9 good, >0.9 excellent)", "```",
+           "", "## C. Visit-to-visit stability ICC(2,1), first vs last study visit (months to ~2 years apart; mixes noise and true change)", "```",
            C.round(3).to_string(index=False), "```", extra,
            "", "Figure: figures/A_stage_direction_heatmap.png"]
     (out / "REPORT.md").write_text("\n".join(md) + "\n")
