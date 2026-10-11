@@ -18,6 +18,7 @@ reruns_eyegrouped/
 # other codes
 model_results_bin.csv
 workflow_eval_v3.sh
+note-AMD-paper2.txt
 
 *.csv
 *.pkl
