@@ -2,7 +2,7 @@
 
 **Status: DRAFT, not signed off.** The P1/P2 code refuses to run on real data until this line reads
 `Status: SIGNED OFF (date, names)`. Step S0 (descriptive) may run before sign-off.
-**Written:** 11 Oct 2026, branch `paper2-shortpaper`. **Sign-off:** ____________ (all co-authors, date)
+**Written:** 11 Oct 2026, branch `AMD-P2`. **Sign-off:** ____________ (all co-authors, date)
 
 Working title: *Test-retest reliability and functional validity of objective multifocal pupillographic
 perimetry (OFA) in age-related macular degeneration.*
