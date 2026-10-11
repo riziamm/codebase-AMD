@@ -91,7 +91,9 @@ def main():
                           VaLE=np.round(va[:, 0], 2), VaRE=np.round(va[:, 1], 2),
                           VaLcLE=np.round(va_lc[:, 0], 2), VaLcRE=np.round(va_lc[:, 1], 2),
                           AREDSsevL=sevs[:, 0], AREDSsevR=sevs[:, 1],
-                          VisitN=rng.choice([1, 1, 1, 2, 3], S), VisitLast=rng.choice([0, 1], S)))
+                          VisitN=rng.choice([2, 3, 4], S),
+                          VisitLast=(pd.Timestamp("2018-10-01") + pd.to_timedelta(rng.integers(0, 800, S), "D"))
+                          .strftime("%d-%b-%Y")))   # same format as the real d.T (dd-Mon-yyyy)
     T.to_csv(out / "demographics_raw.csv", index=False)
     pd.DataFrame(dict(region=np.arange(1, 45), band=np.where(np.arange(1, 45) <= 16, "central", "peripheral"))) \
         .to_csv(out / "ofa44_bands.csv", index=False)

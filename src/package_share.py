@@ -177,6 +177,15 @@ def main():
            if "preds_holdout" not in f.parts and not csv_ok(f, max_rows=2000 if ("diagnostics" in f.parts or "explain" in f.parts or "ofa_value" in f.parts or "results_pack" in f.parts) else 200)[0]]
     bad += [str(f) for f in Path(a.out).rglob("*") if f.suffix.lower() in {".pkl", ".npy", ".npz", ".pt", ".html"}]
     bad += [str(f) for f in Path(a.out).rglob("oof_reg*.csv")]          # Paper 2 row-level predictions
+    # patient-era calendar dates (visit dates etc.) must never be shared; run timestamps (>= 2025) are fine
+    import re
+    date_re = re.compile(r"\b\d{1,2}[-/ ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2})[-/ ](\d{4})\b"
+                         r"|\b(\d{4})-\d{2}-\d{2}\b", re.I)
+    for f in Path(a.out).rglob("*"):
+        if f.suffix.lower() in {".csv", ".md", ".txt"} and f.name != "pip_freeze.txt":
+            for m in date_re.finditer(f.read_text(errors="ignore")):
+                if int(m.group(1) or m.group(2)) < 2025:
+                    bad.append(f"{f}  (date {m.group(0)})"); break
     if bad:
         raise SystemExit(f"SAFETY SCAN FAILED, remove before pushing: {bad[:5]}")
     print("SAFETY SCAN PASSED: no ID/feature columns, no pkl/npy/html in package.")

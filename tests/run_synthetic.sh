@@ -17,4 +17,10 @@ c = pd.read_csv("$T/share_test/p2_function/CONTRASTS.csv"); p = c[c.id == "P1"].
 assert p.conclusion == "A adds (dR2 > 0)", p.conclusion       # planted Del effect must be found
 print("PRIMARY on planted signal:", round(p.dR2, 3), p.conclusion)
 PY
+grep -q "VisitLast_year" $T/share_test/p2_baseline/visits.csv || { echo "FAIL: visit years missing"; exit 1; }
+if grep -qE "[0-9]{2}-[A-Za-z]{3}-20(18|19|20)" -r $T/share_test; then echo "FAIL: exact visit date packaged"; exit 1; fi
+echo "08-Mar-2019" > $T/reruns_paper2/p2_baseline/leak_test.csv
+if python -m src.package_share --root $T/reruns_paper2 --out $T/share_leak >/dev/null 2>&1; then
+  echo "FAIL: packager did not block a patient-era date"; exit 1; fi
+echo "date guard OK (visit years only; leaked date blocked)"
 echo "SYNTHETIC TEST PASSED"

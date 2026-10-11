@@ -7,7 +7,7 @@ p2_baseline.py: Step S0 of docs/ANALYSIS_PLAN_PAPER2.md (runs first; descriptive
        advanced (3-4 vs 1); subject-clustered bootstrap CI. Pre-specified flag rule (plan section S0).
   S0.3 Age vs OFA total deviation and MPOD in normal eyes (TD should be ~age-independent; no acuity here).
        S0 contains no predictor-outcome association, so it may run before the plan is signed off.
-  S0.4 Follow-up check: value counts of VisitN / VisitLast from demographics_raw.csv (counts only).
+  S0.4 Follow-up check: counts of VisitN, and of the YEAR of VisitLast (never exact dates).
 Outputs (aggregates only): table1.csv, age_auc.csv, age_corr.csv, visits.csv, REPORT.md, run_info.json
 
   python -m src.p2_baseline --export data/export --out reruns_paper2/p2_baseline [--raw demographics_raw.csv]
@@ -82,13 +82,21 @@ def age_corr(E, B, seed):
 
 
 def visits(raw):
+    """Follow-up fields. VisitN: counts per value. VisitLast holds DATES -> only counts per YEAR are reported
+    (exact dates are patient-level data and must never be exported)."""
     if not raw or not Path(raw).exists():
         return pd.DataFrame()
     T = pd.read_csv(raw, usecols=lambda c: c in ("VisitN", "VisitLast"))   # SbjID is never read
     rows = []
-    for c in T.columns:
-        for v, n in T[c].value_counts(dropna=False).sort_index().items():
-            rows.append(dict(variable=c, value=v, n_subjects=int(n)))
+    if "VisitN" in T:
+        for v, n in T["VisitN"].value_counts(dropna=False).sort_index().items():
+            rows.append(dict(variable="VisitN", value=str(v), n_subjects=int(n)))
+    if "VisitLast" in T:
+        d = pd.to_datetime(T["VisitLast"], format="%d-%b-%Y", errors="coerce")
+        d = d.fillna(pd.to_datetime(T["VisitLast"], errors="coerce", dayfirst=True))
+        for y, n in d.dt.year.value_counts(dropna=False).sort_index().items():
+            rows.append(dict(variable="VisitLast_year", value="unparsed" if pd.isna(y) else str(int(y)),
+                             n_subjects=int(n)))
     return pd.DataFrame(rows)
 
 
