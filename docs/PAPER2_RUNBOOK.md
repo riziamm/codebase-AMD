@@ -1,5 +1,8 @@
 # Paper 2 runbook (branch `AMD-P2`)
 
+**Start every session:** `source activate.sh` (own folder `../AMD-P2` via git worktree, conda env `ardes`,
+paths to `data/export` in the main clone). Your other branch in the main clone is never touched.
+
 Plan: `docs/ANALYSIS_PLAN_PAPER2.md`. Code: `src/p2_*.py`, `scripts/p2_*.sh`. Test: `bash tests/run_synthetic.sh`.
 Outputs on the HPC: `reruns_paper2/` (git-ignored). Shared aggregates: `share/paper2_run_<date>/`.
 
