@@ -32,5 +32,11 @@ mean|all normal eyes (AREDS 1)      26        -0.263 -0.700 0.240
 
 ## S0.4 Follow-up fields (counts of subjects)
 ~~~
-demographics_raw.csv not given
+      variable value  n_subjects
+        VisitN     2           7
+        VisitN     3           2
+        VisitN     4          20
+VisitLast_year  2018           2
+VisitLast_year  2019          19
+VisitLast_year  2020           8
 ~~~
