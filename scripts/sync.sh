@@ -4,13 +4,13 @@
 #   bash scripts/sync.sh "my message"    # same, with your own commit message
 # Data are never committed (.gitignore blocks csv/pkl/npy/models/reruns_*; only share/ is allowed).
 set -e
-BR=eye-grouped-rerun
+BR="$(git branch --show-current)"
+case "$BR" in eye-grouped-rerun|paper2-shortpaper) ;; *) echo "STOP: on branch '$BR'. Allowed: eye-grouped-rerun, paper2-shortpaper (never main)"; exit 1;; esac
 if [ -n "$(git ls-files -u)" ]; then
   echo "STOP: unresolved conflict in:"; git ls-files -u | awk '{print "  "$4}' | sort -u
   echo "Send me this output (or keep the GitHub version with: git checkout origin/$BR -- <file> && git add <file>)"
   exit 1
 fi
-[ "$(git branch --show-current)" = "$BR" ] || { echo "STOP: you are on branch $(git branch --show-current), expected $BR"; exit 1; }
 git add -u                                   # edits/deletions of tracked files
 git add configs/ share/ 2>/dev/null || true  # new configs and shared (aggregate) results
 if ! git diff --cached --quiet; then
