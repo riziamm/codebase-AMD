@@ -49,7 +49,10 @@ _p2_main() {
 
   # ---- paths (data stay in the main clone; never copied into the worktree) and GPU
   export EXPORT="$MAIN/data/export"
-  [ -f "$MAIN/demographics_raw.csv" ] && export RAW="$MAIN/demographics_raw.csv"
+  unset RAW
+  for f in "$MAIN/data/demographics_raw.csv" "$MAIN/demographics_raw.csv" "$MAIN/data/export/demographics_raw.csv"; do
+    [ -f "$f" ] && export RAW="$f" && break
+  done
   [ -f "$MAIN/data/export/ofa44_bands.csv" ] && export BANDS44="$MAIN/data/export/ofa44_bands.csv"
   export CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"   # RTX A6000
   mkdir -p reruns_paper2/logs
