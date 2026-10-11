@@ -1,4 +1,4 @@
-# Paper 2 runbook (branch `paper2-shortpaper`)
+# Paper 2 runbook (branch `AMD-P2`)
 
 Plan: `docs/ANALYSIS_PLAN_PAPER2.md`. Code: `src/p2_*.py`, `scripts/p2_*.sh`. Test: `bash tests/run_synthetic.sh`.
 Outputs on the HPC: `reruns_paper2/` (git-ignored). Shared aggregates: `share/paper2_run_<date>/`.

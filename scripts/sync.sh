@@ -5,7 +5,7 @@
 # Data are never committed (.gitignore blocks csv/pkl/npy/models/reruns_*; only share/ is allowed).
 set -e
 BR="$(git branch --show-current)"
-case "$BR" in eye-grouped-rerun|paper2-shortpaper) ;; *) echo "STOP: on branch '$BR'. Allowed: eye-grouped-rerun, paper2-shortpaper (never main)"; exit 1;; esac
+case "$BR" in eye-grouped-rerun|AMD-P2) ;; *) echo "STOP: on branch '$BR'. Allowed: eye-grouped-rerun, AMD-P2 (never main)"; exit 1;; esac
 if [ -n "$(git ls-files -u)" ]; then
   echo "STOP: unresolved conflict in:"; git ls-files -u | awk '{print "  "$4}' | sort -u
   echo "Send me this output (or keep the GitHub version with: git checkout origin/$BR -- <file> && git add <file>)"
