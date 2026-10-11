@@ -1,0 +1,61 @@
+task,model,comparison,set_A,set_B,AUC_A,AUC_B,dAUC,lo,hi,boot_p,conclusion
+advanced,rf,"[subject] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.9114819004524886,0.752262443438914,0.1592194570135746,0.0205350378787878,0.3107914402173912,0.026,A better
+advanced,rf,[subject] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.9114819004524886,0.9054581447963802,0.0060237556561085,-0.0058547341350333,0.0192480190238527,0.347,no difference detected
+advanced,rf,[subject] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.9054581447963802,0.752262443438914,0.153195701357466,0.0048242081447963,0.3124191810344828,0.041,A better
+advanced,rf,[subject] all+age vs age,"all,age",age,0.9053733031674208,0.752262443438914,0.1531108597285067,0.0126610119047619,0.3065341376345693,0.034,A better
+advanced,rf,[subject] all+age vs all,"all,age",all,0.9053733031674208,0.8927319004524887,0.012641402714932,-0.0022182881773399,0.0303263634264442,0.107,no difference detected
+advanced,lr,"[subject] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.8853506787330316,0.8601809954751133,0.0251696832579185,-0.0673369212962962,0.1317887443438913,0.629,no difference detected
+advanced,lr,[subject] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.8853506787330316,0.880656108597285,0.0046945701357466,-0.0155319264069264,0.0242910714285714,0.585,no difference detected
+advanced,lr,[subject] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.880656108597285,0.8601809954751133,0.0204751131221719,-0.0802159455128204,0.1371867559523807,0.69,no difference detected
+advanced,lr,[subject] all+age vs age,"all,age",age,0.8324095022624434,0.8601809954751133,-0.0277714932126696,-0.1358971880260943,0.0885560331825037,0.607,no difference detected
+advanced,lr,[subject] all+age vs all,"all,age",all,0.8324095022624434,0.8274321266968325,0.0049773755656108,-0.0211877893518518,0.0302469982078852,0.722,no difference detected
+advanced,rf,"[eye] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.9459276018099548,0.8718325791855204,0.0740950226244343,-0.0232881384408602,0.1908934523809523,0.161,no difference detected
+advanced,rf,[eye] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.9459276018099548,0.9426753393665156,0.0032522624434388,-0.0037561576354679,0.0114586715367965,0.38,no difference detected
+advanced,rf,[eye] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.9426753393665156,0.8718325791855204,0.0708427601809954,-0.0311581586438923,0.1900112179487179,0.202,no difference detected
+advanced,rf,[eye] all+age vs age,"all,age",age,0.9436934389140272,0.8718325791855204,0.0718608597285067,-0.0251060118649732,0.1873604662698412,0.171,no difference detected
+advanced,rf,[eye] all+age vs all,"all,age",all,0.9436934389140272,0.9378676470588236,0.0058257918552036,-0.0010132284118357,0.0145840277777778,0.103,no difference detected
+advanced,lr,"[eye] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.9078054298642536,0.8748868778280544,0.032918552036199,-0.0497707544191918,0.1361030518394648,0.485,no difference detected
+advanced,lr,[eye] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.9078054298642536,0.9096153846153848,-0.0018099547511312,-0.0214679089026915,0.0196911482334869,0.844,no difference detected
+advanced,lr,[eye] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.9096153846153848,0.8748868778280544,0.0347285067873302,-0.0585413262527232,0.1444747023809523,0.49,no difference detected
+advanced,lr,[eye] all+age vs age,"all,age",age,0.8997737556561087,0.8748868778280544,0.0248868778280543,-0.060253839869281,0.1246352766577058,0.585,no difference detected
+advanced,lr,[eye] all+age vs all,"all,age",all,0.8997737556561087,0.8860859728506787,0.0136877828054298,-0.0032626811594202,0.0322690186968203,0.126,no difference detected
+any,rf,"[subject] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.6876802884615384,0.667548076923077,0.0201322115384614,-0.1072362544163587,0.149226649720893,0.766,no difference detected
+any,rf,[subject] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.6876802884615384,0.6845703125,0.0031099759615384,-0.0214422521014318,0.0287130841457979,0.812,no difference detected
+any,rf,[subject] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.6845703125,0.667548076923077,0.017022235576923,-0.1292237148268398,0.1581717688265381,0.823,no difference detected
+any,rf,[subject] all+age vs age,"all,age",age,0.6811448317307692,0.667548076923077,0.0135967548076922,-0.1175293974603848,0.147560290329169,0.862,no difference detected
+any,rf,[subject] all+age vs all,"all,age",all,0.6811448317307692,0.6581580528846154,0.0229867788461538,0.0009542481264255,0.0474415922619047,0.04,A better
+any,lr,"[subject] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.69609375,0.7842548076923077,-0.0881610576923076,-0.1960652475784054,0.0097427398989897,0.085,no difference detected
+any,lr,[subject] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.69609375,0.6705528846153846,0.0255408653846153,0.0070590909090909,0.0457837435649935,0.009,A better
+any,lr,[subject] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.6705528846153846,0.7842548076923077,-0.113701923076923,-0.2311245519713262,-0.0074122285499719,0.037,B better
+any,lr,[subject] all+age vs age,"all,age",age,0.6486177884615384,0.7842548076923077,-0.1356370192307691,-0.2503950315978118,-0.0221851638504865,0.026,B better
+any,lr,[subject] all+age vs all,"all,age",all,0.6486177884615384,0.6315805288461539,0.0170372596153846,0.0007209821428571,0.0345303166069294,0.038,A better
+any,rf,"[eye] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.7430889423076923,0.7329326923076923,0.01015625,-0.1030988596906565,0.1230001395089284,0.881,no difference detected
+any,rf,[eye] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.7430889423076923,0.7327223557692308,0.0103665865384615,-0.0052802075026581,0.0273002260606217,0.175,no difference detected
+any,rf,[eye] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.7327223557692308,0.7329326923076923,-0.0002103365384615,-0.1238983094918075,0.1197166138548951,0.974,no difference detected
+any,rf,[eye] all+age vs age,"all,age",age,0.7313701923076923,0.7329326923076923,-0.0015625,-0.1164766278375149,0.1136153715510032,0.96,no difference detected
+any,rf,[eye] all+age vs all,"all,age",all,0.7313701923076923,0.7136418269230769,0.0177283653846153,0.0007879956569472,0.0373970031626781,0.036,A better
+any,lr,"[eye] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.7254807692307692,0.7884615384615383,-0.0629807692307691,-0.1603415881170197,0.0282689801238187,0.187,no difference detected
+any,lr,[eye] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.7254807692307692,0.7227463942307691,0.002734375,-0.0132067153512399,0.0203416149068322,0.784,no difference detected
+any,lr,[eye] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.7227463942307691,0.7884615384615383,-0.0657151442307692,-0.1738460915616247,0.0365181424944529,0.21,no difference detected
+any,lr,[eye] all+age vs age,"all,age",age,0.6905649038461539,0.7884615384615383,-0.0978966346153845,-0.1970092667748917,0.0018733178053829,0.053,no difference detected
+any,lr,[eye] all+age vs all,"all,age",all,0.6905649038461539,0.6717247596153845,0.0188401442307692,0.0002384096930029,0.0389295995670995,0.046,A better
+early,rf,"[subject] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.4778846153846153,0.5423076923076923,-0.0644230769230769,-0.2991252787068004,0.1659210526315784,0.573,no difference detected
+early,rf,[subject] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.4778846153846153,0.456826923076923,0.0210576923076922,0.0007165876886271,0.0422289862914862,0.044,A better
+early,rf,[subject] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.456826923076923,0.5423076923076923,-0.0854807692307692,-0.3273138534259858,0.1543764952153109,0.465,no difference detected
+early,rf,[subject] all+age vs age,"all,age",age,0.5022435897435897,0.5423076923076923,-0.0400641025641025,-0.2690634385428254,0.1906268479327689,0.72,no difference detected
+early,rf,[subject] all+age vs all,"all,age",all,0.5022435897435897,0.5020192307692308,0.0002243589743589,-0.0137683732707509,0.0144931006493506,0.972,no difference detected
+early,lr,"[subject] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.4619871794871796,0.6792307692307693,-0.2172435897435897,-0.3867886192754613,-0.0392931547619047,0.018,B better
+early,lr,[subject] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.4619871794871796,0.4546794871794872,0.0073076923076923,-0.0214870689655172,0.0330028998778998,0.552,no difference detected
+early,lr,[subject] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.4546794871794872,0.6792307692307693,-0.2245512820512821,-0.400579970431451,-0.0340216870731302,0.023,B better
+early,lr,[subject] all+age vs age,"all,age",age,0.4969871794871794,0.6792307692307693,-0.1822435897435897,-0.3507460901027078,-0.0092404048424353,0.045,B better
+early,lr,[subject] all+age vs all,"all,age",all,0.4969871794871794,0.491025641025641,0.0059615384615384,-0.0079771062271061,0.0207066798941799,0.401,no difference detected
+early,rf,"[eye] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.5813141025641027,0.5778205128205128,0.0034935897435897,-0.2256522817460317,0.2202021298593876,0.967,no difference detected
+early,rf,[eye] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.5813141025641027,0.5755769230769231,0.0057371794871794,-0.0160230211598745,0.0258578917678182,0.565,no difference detected
+early,rf,[eye] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.5755769230769231,0.5778205128205128,-0.0022435897435897,-0.2375406931925996,0.2235769605116795,0.995,no difference detected
+early,rf,[eye] all+age vs age,"all,age",age,0.5965064102564103,0.5778205128205128,0.0186858974358974,-0.2047692307692308,0.2441178634167763,0.895,no difference detected
+early,rf,[eye] all+age vs all,"all,age",all,0.5965064102564103,0.5885576923076924,0.0079487179487179,-0.0071113445378151,0.023987177539809,0.282,no difference detected
+early,lr,"[eye] MPOD+age vs age (PRIMARY if subject, RF)","mean,median,std,iqr,idr,skew,kurt,age",age,0.527371794871795,0.6765384615384616,-0.14916666666666667,-0.3191102335164836,0.029622440059940074,0.088,no difference detected
+early,lr,[eye] MPOD+age vs MPOD,"mean,median,std,iqr,idr,skew,kurt,age","mean,median,std,iqr,idr,skew,kurt",0.527371794871795,0.5380128205128206,-0.01064102564102563,-0.03075,0.009051993534482744,0.283,no difference detected
+early,lr,[eye] MPOD vs age,"mean,median,std,iqr,idr,skew,kurt",age,0.5380128205128206,0.6765384615384616,-0.13852564102564105,-0.3150778147857889,0.0467192631362889,0.124,no difference detected
+early,lr,[eye] all+age vs age,"all,age",age,0.5792948717948719,0.6765384615384616,-0.09724358974358976,-0.26532628676470593,0.0821754807692306,0.249,no difference detected
+early,lr,[eye] all+age vs all,"all,age",all,0.5792948717948719,0.5806410256410256,-0.0013461538461538192,-0.011548177083333312,0.009690021494708986,0.807,no difference detected

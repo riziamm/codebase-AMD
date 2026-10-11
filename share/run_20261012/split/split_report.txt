@@ -1,0 +1,22 @@
+data=data/export/mpod.csv  rows=116  eyes=58  subjects=29  seed=42
+feature columns (first 3 / last 3): ['mean_region1', 'mean_region2', 'mean_region3'] ... ['Amp_region18', 'Amp_region19', 'Amp_region20']
+
+[dev] rows=98 eyes=49 subjects=29
+  AREDS (eyes): {1: 22, 2: 13, 3: 8, 4: 6}
+  AREDS (rows): {1: 44, 2: 26, 3: 16, 4: 12}
+  binary (rows) 0/1: {0: 44, 1: 54}
+
+[holdout] rows=18 eyes=9 subjects=9
+  AREDS (eyes): {1: 4, 2: 2, 3: 2, 4: 1}
+  AREDS (rows): {1: 8, 2: 4, 3: 4, 4: 2}
+  binary (rows) 0/1: {0: 8, 1: 10}
+
+Holdout eyes whose fellow eye is in dev: 9 / 9  (of which binary-discordant: 0)
+
+CV k=3: rows per fold {0: 34, 1: 32, 2: 32}; binary positives per fold {0: 18, 1: 18, 2: 18}
+
+CV k=5: rows per fold {0: 20, 1: 20, 2: 20, 3: 20, 4: 18}; binary positives per fold {0: 10, 1: 10, 2: 12, 3: 12, 4: 10}
+
+ASSERTIONS PASSED: no eye in >1 partition; no eye in >1 CV fold.
+manifest sha256: effe59b09c4c52a5f3049c416b78303e9f917e2176af79f839fb007703a9d3a7
+wrote train_mpod.csv (98 rows) and test_mpod.csv (18 rows), same column layout as input; row order = manifest order
