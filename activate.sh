@@ -60,7 +60,12 @@ _p2_main() {
   # ---- sync status (fast-forward only: never rewrites your work)
   git fetch -q origin "$BR" 2>/dev/null
   if [ -z "$(git status --porcelain --untracked-files=no)" ]; then
+    local before; before="$(git rev-parse HEAD)"
     git merge -q --ff-only "origin/$BR" 2>/dev/null || echo "NOTE: local and GitHub differ -> run: bash scripts/sync.sh"
+    if [ -z "${_P2_RELOADED:-}" ] && ! git diff --quiet "$before" HEAD -- activate.sh; then
+      echo "activate.sh was updated by the pull -> reloading it"
+      export _P2_RELOADED=1; source "$WT/activate.sh"; unset _P2_RELOADED; return
+    fi
   else
     echo "NOTE: you have uncommitted changes -> bash scripts/sync.sh when ready"
   fi

@@ -25,11 +25,13 @@ Eye-level features = mean of the two sessions (except P2, which compares session
 Ring summaries: mean over zones of each ring (`d.p.ring`: centre 1-4, middle 5-12, outer 13-20).
 
 **To fix before sign-off**
-- [ ] VA and VAlc units (logMAR assumed: higher = worse) and the visit at which they were measured
-      relative to the OFA/MPOD sessions.
+- [x] VA and VAlc units: **letter scores, higher = better** (inferred from S0: VA median 83 [IQR 81-85],
+      VAlc 73 [68-76]; to be confirmed by the clinical co-author). All P1 metrics are direction-free.
+      High-contrast VA is near ceiling (IQR 4 letters) -> supports VAlc as the primary outcome.
+- [ ] Visit at which VA/VAlc were measured relative to the OFA/MPOD sessions.
 - [ ] 44-region layout: region -> eccentricity band file `ofa44_bands.csv` (from device documentation).
       If unavailable, 44-region analyses use whole-field mean and worst value only.
-- [ ] Confirm that no reliability result appears in Paper 1 (main text or supplement).
+- [ ] Confirm that no reliability result appears in Paper 1 (results pack checked: none; check manuscript/supplement).
 
 ## 2. Step S0: baseline and safety checks (runs first; descriptive)
 - Table 1 by AREDS grade: eyes, subjects, age, sex, VA, VAlc (median [IQR]), missingness.
@@ -40,6 +42,10 @@ Ring summaries: mean over zones of each ring (`d.p.ring`: centre 1-4, middle 5-1
   correlation would argue for age adjustment).
 - Counts of `VisitN` / `VisitLast` (decides whether a longitudinal paper is feasible; no analysis here).
 - S0 contains no association between predictors and acuity.
+- **S0 result (run 11 Oct 2026, `share/paper2_run_20261011/p2_baseline`):** age-only AUC any 0.80 [0.65, 0.93],
+  early 0.71 [0.51, 0.87], advanced 0.89 [0.73, 0.99] -> **FLAG raised** to Paper 1 authors. AREDS 1 eyes are
+  younger (median 68.5 y) than AREDS 3-4 (75-76 y). For Paper 2 this confirms that age must be in every baseline
+  (already the case: all P1 sets contain age + sex). No change to sections 3-4.
 
 ## 3. P1 (primary, confirmatory): do OFA measures explain acuity beyond age, sex and MPOD?
 **Hypothesis H1.** Adding OFA (Del, Amp; 3 ring means each) to age + sex + MPOD (7 statistics x 3 ring means)
