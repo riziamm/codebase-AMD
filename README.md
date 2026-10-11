@@ -7,6 +7,32 @@ It includes two main components:
   * A configurable **Machine Learning (ML) pipeline** (in the `src/` folder) for end-to-end experiments on tabular data.
   * A **Deep Learning (DL) pipeline** (`dl_pipeline_gen.py`) for multimodal analysis.
 
+## Paper 2 (branch `AMD-P2`): start every session here
+
+Paper 2 has its own folder (a git worktree) next to the main clone, so other branches and running jobs in the
+main clone are never switched underneath them:
+```
+~/projects/ardes/codebase-AMD/codebase-AMD   main clone (other branches; data/export lives here)
+~/projects/ardes/codebase-AMD/AMD-P2         Paper 2 folder (branch AMD-P2; outputs in reruns_paper2/)
+```
+
+**Start a session** (from anywhere):
+```bash
+source ~/projects/ardes/codebase-AMD/AMD-P2/activate.sh     # or the alias:  p2
+```
+This goes to the `AMD-P2` folder, checks you are on branch `AMD-P2`, runs `conda activate ardes`, sets the data
+paths and GPU (`CUDA_DEVICE_ORDER=PCI_BUS_ID`, `CUDA_VISIBLE_DEVICES=0`), pulls new commits if your folder is
+clean, and prints a status box. Use `source`, not `bash` (bash cannot activate conda in your shell).
+
+**First time only** (from the main clone, after `git fetch origin`): `git checkout AMD-P2 && source activate.sh`.
+It creates the `AMD-P2` folder and puts the main clone back on its previous branch.
+Optional alias: `echo "alias p2='source ~/projects/ardes/codebase-AMD/AMD-P2/activate.sh'" >> ~/.bashrc`
+
+**End a session / share results:** `bash scripts/sync.sh "message"` (commit, pull --rebase, push; no stash).
+Only aggregates in `share/` are ever committed; data, `reruns_*/` and private notes are git-ignored.
+
+Plan: `docs/ANALYSIS_PLAN_PAPER2.md` · run steps and run log: `docs/PAPER2_RUNBOOK.md`.
+
 ## Setup
 
 #### 1. Clone the Repository
