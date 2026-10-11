@@ -96,7 +96,7 @@ class Packager:
             json.dump(data, open(dst, "w"), indent=1)
         elif suf == ".csv":
             pred = "preds_holdout" in src.parts
-            ok, why = csv_ok(src, pred_mode=pred, max_rows=2000 if ("diagnostics" in src.parts or "explain" in src.parts or "ofa_value" in src.parts or "results_pack" in src.parts) else 200)
+            ok, why = csv_ok(src, pred_mode=pred, max_rows=2000 if (set(src.parts) & {"diagnostics", "explain", "ofa_value", "results_pack", "p2_baseline", "p2_reliability", "p2_function"}) else 200)
             if not ok:
                 self.skipped.append((str(src), why)); return
             shutil.copy2(src, dst)
@@ -145,6 +145,15 @@ def main():
         for f in (root / sub).rglob("*"):
             if f.suffix.lower() in {".csv", ".md", ".png", ".json"}:
                 P.add(f, root / sub, sub)
+    # Paper 2 (docs/ANALYSIS_PLAN_PAPER2.md): aggregates only; row-level oof*.csv NEVER leave the HPC
+    for sub in ("p2_baseline", "p2_reliability"):
+        for f in (root / sub).rglob("*"):
+            if f.suffix.lower() in {".csv", ".md", ".png", ".json"} and not f.name.startswith("oof"):
+                P.add(f, root / sub, sub)
+    p2f = root / "p2_function"
+    for pat in ("SUMMARY.csv", "CONTRASTS.csv", "REPORT.md", "run_info.json", "*/*/*/summary.json"):
+        for f in p2f.glob(pat):
+            P.add(f, p2f, "p2_function")
     rcv = root / "repeated_cv"
     P.add(rcv / "OVERVIEW.csv", rcv, "repeated_cv")
     for pat in ("*/summary.csv", "*/paired.csv", "*/REPORT.md", "*/*/summary.json", "*/*/null.csv"):
@@ -167,6 +176,7 @@ def main():
     bad = [str(f) for f in Path(a.out).rglob("*.csv")
            if "preds_holdout" not in f.parts and not csv_ok(f, max_rows=2000 if ("diagnostics" in f.parts or "explain" in f.parts or "ofa_value" in f.parts or "results_pack" in f.parts) else 200)[0]]
     bad += [str(f) for f in Path(a.out).rglob("*") if f.suffix.lower() in {".pkl", ".npy", ".npz", ".pt", ".html"}]
+    bad += [str(f) for f in Path(a.out).rglob("oof_reg*.csv")]          # Paper 2 row-level predictions
     if bad:
         raise SystemExit(f"SAFETY SCAN FAILED, remove before pushing: {bad[:5]}")
     print("SAFETY SCAN PASSED: no ID/feature columns, no pkl/npy/html in package.")
