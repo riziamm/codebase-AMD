@@ -1,0 +1,15 @@
+{
+ "model": "rf",
+ "task": "any",
+ "repeats": 10,
+ "oof_auc": 0.7136418269230769,
+ "group_rank_stability_mean_spearman": 0.918148148148148,
+ "top_group_frequency": {
+  "median": 10
+ },
+ "mean_abs_shap_per_zone_by_ring": {
+  "centre": 0.0021712077192601064,
+  "middle": 0.0029427149845688986,
+  "outer": 0.0027312505836854344
+ }
+}

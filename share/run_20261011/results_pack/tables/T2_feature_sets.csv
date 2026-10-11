@@ -1,0 +1,46 @@
+Task,Feature set,Model,AUC [95% CI],p (perm.)
+Any AMD (AREDS 2-4 vs 1),MPOD + OFA (all 9),Logistic regression,0.67 [0.55-0.78],0.11
+Any AMD (AREDS 2-4 vs 1),MPOD + OFA (all 9),Random forest,0.71 [0.59-0.83],0.02
+Any AMD (AREDS 2-4 vs 1),MPOD only (7),Logistic regression,0.72 [0.61-0.83],<0.01
+Any AMD (AREDS 2-4 vs 1),MPOD only (7),Random forest,0.73 [0.61-0.84],-
+Any AMD (AREDS 2-4 vs 1),OFA only (Del + Amp),Logistic regression,0.46 [0.38-0.55],0.83
+Any AMD (AREDS 2-4 vs 1),OFA only (Del + Amp),Random forest,0.37 [0.27-0.47],-
+Any AMD (AREDS 2-4 vs 1),OFA delay only,Logistic regression,0.51 [0.41-0.61],0.49
+Any AMD (AREDS 2-4 vs 1),OFA delay only,Random forest,0.46 [0.36-0.56],-
+Any AMD (AREDS 2-4 vs 1),OFA sensitivity only,Logistic regression,0.46 [0.37-0.55],0.91
+Any AMD (AREDS 2-4 vs 1),OFA sensitivity only,Random forest,0.37 [0.29-0.47],-
+Any AMD (AREDS 2-4 vs 1),Structure-function coupling only,Logistic regression,0.63 [0.52-0.74],0.15
+Any AMD (AREDS 2-4 vs 1),Structure-function coupling only,Random forest,0.60 [0.48-0.71],-
+Any AMD (AREDS 2-4 vs 1),Centre ring only (all 9 features),Logistic regression,0.61 [0.50-0.72],0.21
+Any AMD (AREDS 2-4 vs 1),Middle ring only (all 9 features),Logistic regression,0.67 [0.55-0.77],0.11
+Any AMD (AREDS 2-4 vs 1),Outer ring only (all 9 features),Logistic regression,0.60 [0.48-0.70],0.26
+Early AMD (AREDS 2 vs 1),MPOD + OFA (all 9),Logistic regression,0.58 [0.42-0.73],0.43
+Early AMD (AREDS 2 vs 1),MPOD + OFA (all 9),Random forest,0.59 [0.42-0.75],0.23
+Early AMD (AREDS 2 vs 1),MPOD only (7),Logistic regression,0.54 [0.41-0.67],0.46
+Early AMD (AREDS 2 vs 1),MPOD only (7),Random forest,0.58 [0.42-0.72],-
+Early AMD (AREDS 2 vs 1),OFA only (Del + Amp),Logistic regression,0.58 [0.42-0.74],0.33
+Early AMD (AREDS 2 vs 1),OFA only (Del + Amp),Random forest,0.52 [0.36-0.67],-
+Early AMD (AREDS 2 vs 1),OFA delay only,Logistic regression,0.64 [0.47-0.79],0.15
+Early AMD (AREDS 2 vs 1),OFA delay only,Random forest,0.56 [0.40-0.71],-
+Early AMD (AREDS 2 vs 1),OFA sensitivity only,Logistic regression,0.39 [0.28-0.50],0.98
+Early AMD (AREDS 2 vs 1),OFA sensitivity only,Random forest,0.30 [0.19-0.41],-
+Early AMD (AREDS 2 vs 1),Structure-function coupling only,Logistic regression,0.60 [0.46-0.73],0.30
+Early AMD (AREDS 2 vs 1),Structure-function coupling only,Random forest,0.56 [0.42-0.69],-
+Early AMD (AREDS 2 vs 1),Centre ring only (all 9 features),Logistic regression,0.61 [0.45-0.77],0.13
+Early AMD (AREDS 2 vs 1),Middle ring only (all 9 features),Logistic regression,0.52 [0.38-0.66],0.51
+Early AMD (AREDS 2 vs 1),Outer ring only (all 9 features),Logistic regression,0.51 [0.38-0.63],0.56
+Intermediate/advanced (AREDS 3-4 vs 1),MPOD + OFA (all 9),Logistic regression,0.89 [0.80-0.95],<0.01
+Intermediate/advanced (AREDS 3-4 vs 1),MPOD + OFA (all 9),Random forest,0.94 [0.87-0.98],<0.01
+Intermediate/advanced (AREDS 3-4 vs 1),MPOD only (7),Logistic regression,0.91 [0.83-0.97],<0.01
+Intermediate/advanced (AREDS 3-4 vs 1),MPOD only (7),Random forest,0.94 [0.88-0.98],-
+Intermediate/advanced (AREDS 3-4 vs 1),OFA only (Del + Amp),Logistic regression,0.56 [0.45-0.67],0.38
+Intermediate/advanced (AREDS 3-4 vs 1),OFA only (Del + Amp),Random forest,0.55 [0.38-0.71],-
+Intermediate/advanced (AREDS 3-4 vs 1),OFA delay only,Logistic regression,0.50 [0.37-0.61],0.45
+Intermediate/advanced (AREDS 3-4 vs 1),OFA delay only,Random forest,0.50 [0.34-0.66],-
+Intermediate/advanced (AREDS 3-4 vs 1),OFA sensitivity only,Logistic regression,0.59 [0.49-0.70],0.24
+Intermediate/advanced (AREDS 3-4 vs 1),OFA sensitivity only,Random forest,0.55 [0.41-0.69],-
+Intermediate/advanced (AREDS 3-4 vs 1),Structure-function coupling only,Logistic regression,0.57 [0.44-0.70],0.49
+Intermediate/advanced (AREDS 3-4 vs 1),Structure-function coupling only,Random forest,0.62 [0.51-0.74],-
+Intermediate/advanced (AREDS 3-4 vs 1),Centre ring only (all 9 features),Logistic regression,0.80 [0.71-0.89],0.03
+Intermediate/advanced (AREDS 3-4 vs 1),Middle ring only (all 9 features),Logistic regression,0.87 [0.78-0.93],<0.01
+Intermediate/advanced (AREDS 3-4 vs 1),Outer ring only (all 9 features),Logistic regression,0.86 [0.75-0.95],0.01

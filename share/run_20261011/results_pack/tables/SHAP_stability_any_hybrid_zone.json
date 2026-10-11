@@ -1,0 +1,17 @@
+{
+ "model": "hybrid_zone",
+ "task": "any",
+ "repeats": 5,
+ "oof_auc": 0.5837139423076924,
+ "group_rank_stability_mean_spearman": 0.475,
+ "top_group_frequency": {
+  "skew": 3,
+  "Del": 1,
+  "Amp": 1
+ },
+ "mean_abs_shap_per_zone_by_ring": {
+  "centre": 0.010186204965293759,
+  "middle": 0.008022201936526287,
+  "outer": 0.010840357567561777
+ }
+}
