@@ -140,6 +140,14 @@ bash scripts/11_results_pack.sh        # ~2 min; tables T1-T4, figures (incl. ou
 bash scripts/5_package_share.sh && bash scripts/sync.sh "results pack"
 ```
 
+
+## ▶ Paper 1 age check (pre-specified: docs/ANALYSIS_PLAN_AGE.md)
+```bash
+nohup bash scripts/12_age_check.sh > reruns_eyegrouped/logs/age_check.log 2>&1 &     # CPU, ~2 h, resumable
+bash scripts/5_package_share.sh && bash scripts/sync.sh "age check"
+```
+Needs `data/export/demographics.csv`. Output: `age_check/REPORT.md` (primary: RF, participant-grouped, MPOD+age vs age).
+
 ## 1. Frozen split (already done; repeat here only if needed)
 
 ```bash

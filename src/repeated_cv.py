@@ -82,6 +82,7 @@ def apply_task(df, task):
 
 
 MPOD_GROUPS = BASE[:7]
+COVARIATES = ("age", "sex")           # participant-level; merged from demographics.csv
 FUNC_GROUPS = ["Del", "Amp"]
 
 
@@ -96,6 +97,8 @@ def _parse_groups(groups):
             G += MPOD_GROUPS
         elif t == "coupling":
             coupling = True
+        elif t in COVARIATES:
+            continue                      # handled by build_X (participant-level covariates)
         elif t.startswith("-"):
             drop.append(t[1:])
         else:
@@ -139,15 +142,33 @@ def coupling_features(df, rings="all"):
 
 
 def build_X(df, groups="all", rings="all"):
-    cols = feature_columns(groups, rings)
-    _, coupling = _parse_groups(groups)
+    toks = groups.split(",")
+    cov = [t for t in toks if t in COVARIATES]
+    only_cov = all(t in COVARIATES for t in toks)
+    cols = [] if only_cov else feature_columns(groups, rings)
+    _, coupling = _parse_groups(groups) if not only_cov else ([], False)
     parts = [df[cols]] if cols else []
     if coupling:
         parts.append(coupling_features(df, rings))
+    for c in cov:
+        col = "Age" if c == "age" else "Sex"
+        if col not in df.columns:
+            sys.exit(f"'{c}' requested but {col} not found: pass --demographics data/export/demographics.csv")
+        parts.append(df[[col]].rename(columns={col: c}))
     if not parts:
         sys.exit("empty feature set")
     Xdf = pd.concat(parts, axis=1)
     return Xdf.to_numpy(float), list(Xdf.columns)
+
+
+def add_demographics(df, path):
+    """Merge participant covariates (Age, Sex) by Subject/Eye/Repeat; row order is preserved."""
+    d = pd.read_csv(path)[["Subject", "Eye", "Repeat", "Age", "Sex"]]
+    out = df.merge(d, on=["Subject", "Eye", "Repeat"], how="left", validate="one_to_one")
+    if out[["Age", "Sex"]].isna().any().any():
+        sys.exit("demographics missing for some rows")
+    assert (out["eye_id"].values == df["eye_id"].values).all()
+    return out
 
 
 def outer_splits(df, K, R, seed, group_by):
@@ -361,6 +382,8 @@ def cmd_run(a):
     if (out / "summary.json").exists() and not a.force:
         print(f"[skip] {a.model}: summary.json exists (use --force)"); return
     df = apply_task(load_data(a.data), a.task)
+    if any(t in COVARIATES for t in a.groups.split(",")):
+        df = add_demographics(df, a.demographics)
     X, cols = build_X(df, a.groups, a.rings)
     if a.model in DL_MODELS and (a.groups != "all" or a.rings != "all"):
         sys.exit("hybrid models need all 180 features (--groups all --rings all)")
@@ -496,6 +519,7 @@ def main():
             p.add_argument("--task", default="any", choices=list(TASKS))
             p.add_argument("--groups", default="all", help="comma list of feature groups, e.g. Del,Amp  (default all 9)")
             p.add_argument("--rings", default="all", help="comma list of rings: centre,middle,outer (default all)")
+            p.add_argument("--demographics", default="data/export/demographics.csv", help="for groups 'age'/'sex'")
             p.add_argument("--k", type=int, default=5)
             p.add_argument("--repeats", type=int, default=10)
             p.add_argument("--n_perm", type=int, default=200)
