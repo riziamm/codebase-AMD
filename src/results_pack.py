@@ -127,128 +127,105 @@ def table_models():
     return pd.DataFrame(rows)[["Model", "Parameters", "Tuned", "Notes"]]
 
 
-# ------------------------------------------------------------------ figures
-def _plt():
-    import matplotlib; matplotlib.use("Agg")
+# ------------------------------------------------------------------ figures (one style: src/figstyle.py)
+def _get(R, t, mod, g="all", rg="all", gb="eye"):
+    x = R[(R.task == t) & (R.model == mod) & (R.groups == g) & (R.rings == rg) & (R.group_by == gb)]
+    return x.iloc[0] if len(x) else None
+
+
+def fig3_performance(R, path):
+    """Fig 3: (a) AUC by model, (b) feature-set and ring ablation (LR); intermediate/advanced and any AMD."""
+    from . import figstyle as fs
     import matplotlib.pyplot as plt
-    return plt
-
-
-def fig_model_comparison(R, path):
-    plt = _plt()
-    m = R[(R.groups == "all") & (R.rings == "all")]
-    models = ["lr", "rf", "hybrid_zone", "hybrid_orig"]; cols = ["#7f8c8d", "#2e86c1", "#d35400", "#8e44ad"]
-    fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), sharey=True)
-    for ax, t in zip(axes, TASKS):
-        for k, (mod, c) in enumerate(zip(models, cols)):
-            for j, gb in enumerate(["eye", "subject"]):
-                x = m[(m.task == t) & (m.model == mod) & (m.group_by == gb)]
-                if len(x):
-                    x = x.iloc[0]; xpos = k + (j - 0.5) * 0.35
-                    ax.errorbar(xpos, x.AUC, yerr=[[x.AUC - x.lo], [x.hi - x.AUC]], fmt="o" if gb == "eye" else "s",
-                                color=c, mfc=c if gb == "eye" else "white", capsize=3)
-        ax.axhline(0.5, color="k", ls="--", lw=0.8)
-        ax.set_xticks(range(4)); ax.set_xticklabels(["LR", "RF", "Zone\nhybrid", "Orig.\nhybrid"], fontsize=8)
-        ax.set_title(TASK_LABEL[t], fontsize=9); ax.set_ylim(0.2, 1.0)
-    axes[0].set_ylabel("AUC (95% CI)")
-    h = [plt.Line2D([], [], marker="o", ls="", color="k", label="eye-grouped CV"),
-         plt.Line2D([], [], marker="s", ls="", color="k", mfc="white", label="subject-grouped CV")]
-    fig.legend(handles=h, loc="lower center", ncol=2, fontsize=8, bbox_to_anchor=(0.5, -0.06))
-    fig.suptitle("Repeated nested cross-validation (10 x 5-fold); dashed line = chance", fontsize=10)
-    fig.tight_layout(); fig.savefig(path, dpi=250, bbox_inches="tight"); plt.close(fig)
-
-
-def fig_feature_sets(R, path):
-    plt = _plt()
-    e = R[R.group_by == "eye"]
-    sets = [("all", "all", "MPOD + OFA"), (MPOD, "all", "MPOD only"), ("Del,Amp", "all", "OFA only"),
-            ("all", "centre", "Centre ring"), ("all", "middle", "Middle ring"), ("all", "outer", "Outer ring")]
-    fig, axes = plt.subplots(1, 3, figsize=(12, 3.9), sharex=True)
-    for ax, t in zip(axes, TASKS):
-        ylab = []
-        for i, (g, rg, lab) in enumerate(sets):
-            for j, (mod, c) in enumerate([("lr", "#7f8c8d"), ("rf", "#2e86c1")]):
-                x = e[(e.task == t) & (e.groups == g) & (e.rings == rg) & (e.model == mod)]
-                if len(x):
-                    x = x.iloc[0]; y = -i + (j - 0.5) * 0.3
-                    ax.errorbar(x.AUC, y, xerr=[[x.AUC - x.lo], [x.hi - x.AUC]], fmt="o", color=c, capsize=2, ms=4)
-            ylab.append(lab)
-        ax.axvline(0.5, color="k", ls="--", lw=0.8); ax.set_yticks(-np.arange(len(sets))); ax.set_yticklabels(ylab, fontsize=8)
-        ax.set_title(TASK_LABEL[t], fontsize=9); ax.set_xlim(0.2, 1.0); ax.set_xlabel("AUC (95% CI)")
-    h = [plt.Line2D([], [], marker="o", ls="", color=c, label=l) for c, l in [("#7f8c8d", "Logistic regression"), ("#2e86c1", "Random forest")]]
-    fig.legend(handles=h, loc="lower center", ncol=2, fontsize=8, bbox_to_anchor=(0.5, -0.06))
-    fig.suptitle("Feature-set and ring ablation (eye-grouped repeated nested CV; ring-only models: LR)", fontsize=10)
-    fig.tight_layout(); fig.savefig(path, dpi=250, bbox_inches="tight"); plt.close(fig)
+    fs.apply()
+    tasks = [("advanced", "Intermediate/advanced vs normal"), ("any", "Any AMD vs normal")]
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.2, 2.55), gridspec_kw={"width_ratios": [4, 6]})
+    models = ["lr", "rf", "hybrid_zone", "hybrid_orig"]
+    V = [[getattr(_get(R, t, m), "AUC", np.nan) for m in models] for t, _ in tasks]
+    L = [[getattr(_get(R, t, m), "lo", np.nan) for m in models] for t, _ in tasks]
+    H = [[getattr(_get(R, t, m), "hi", np.nan) for m in models] for t, _ in tasks]
+    fs.auc_bars(a1, [fs.MODEL_SHORT[m] for m in models], [n for _, n in tasks], V, L, H, [fs.BAR, fs.BAR_LIGHT])
+    a1.set_title("(a) Models (all features)", fontsize=8.5, loc="left")
+    sets = [("all", "all", "MPOD+\nOFA"), (MPOD, "all", "MPOD\nonly"), ("Del,Amp", "all", "OFA\nonly"),
+            ("all", "centre", "Centre\nring"), ("all", "middle", "Middle\nring"), ("all", "outer", "Outer\nring")]
+    V = [[getattr(_get(R, t, "lr", g, rg), "AUC", np.nan) for g, rg, _ in sets] for t, _ in tasks]
+    L = [[getattr(_get(R, t, "lr", g, rg), "lo", np.nan) for g, rg, _ in sets] for t, _ in tasks]
+    H = [[getattr(_get(R, t, "lr", g, rg), "hi", np.nan) for g, rg, _ in sets] for t, _ in tasks]
+    fs.auc_bars(a2, [l for _, _, l in sets], [n for _, n in tasks], V, L, H, [fs.BAR, fs.BAR_LIGHT], ylabel="")
+    a2.set_title("(b) Feature sets and rings (logistic regression)", fontsize=8.5, loc="left")
+    h, l = a1.get_legend_handles_labels()
+    fig.legend(h, l, loc="lower center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 0.98))
+    fig.tight_layout(pad=0.2, w_pad=0.6)
+    fs.save(fig, path)
 
 
 def fig_logo(C, path):
-    plt = _plt()
+    from . import figstyle as fs
+    import matplotlib.pyplot as plt
     B = C[C.comparison.str.startswith("B:")].copy()
     if B.empty:
         return
+    fs.apply()
     B["group"] = B.comparison.str.extract(r"importance of (\w+)")[0]
-    fig, axes = plt.subplots(1, 3, figsize=(12, 3.8), sharex=True)
+    fig, axes = plt.subplots(1, 3, figsize=(7.2, 2.4), sharex=True, sharey=True)
     for ax, t in zip(axes, TASKS):
-        for j, (mod, c) in enumerate([("lr", "#7f8c8d"), ("rf", "#2e86c1")]):
+        for j, mod in enumerate(["lr", "rf"]):
             x = B[(B.task == t) & (B.model == mod)].set_index("group").reindex(BASE)
             y = -np.arange(len(BASE)) + (j - 0.5) * 0.3
-            ax.errorbar(x.dAUC, y, xerr=[x.dAUC - x.lo, x.hi - x.dAUC], fmt="o", color=c, capsize=2, ms=4, label=mod.upper())
-        ax.axvline(0, color="k", ls="--", lw=0.8); ax.set_yticks(-np.arange(len(BASE))); ax.set_yticklabels(BASE, fontsize=8)
-        ax.set_title(TASK_LABEL[t], fontsize=9); ax.set_xlabel("dAUC: all - (all minus group)")
-    fig.legend(*axes[-1].get_legend_handles_labels(), loc="lower center", ncol=2, fontsize=8, bbox_to_anchor=(0.5, -0.06))
-    fig.suptitle("Leave-one-feature-group-out (paired, eye-clustered bootstrap 95% CI); > 0 = group adds information", fontsize=10)
-    fig.tight_layout(); fig.savefig(path, dpi=250, bbox_inches="tight"); plt.close(fig)
+            ax.errorbar(x.dAUC, y, xerr=[x.dAUC - x.lo, x.hi - x.dAUC], fmt="o", ms=3, capsize=1.5, lw=0.7,
+                        color=fs.MODEL_COLOR[mod], label=MODEL_LABEL[mod])
+        ax.axvline(0, color="gray", ls="--", lw=0.8); ax.set_title(TASK_LABEL[t], fontsize=7.5)
+        ax.set_yticks(-np.arange(len(BASE))); ax.set_yticklabels(BASE); ax.set_xlabel("dAUC (all - all minus group)")
+    axes[0].legend(fontsize=6, loc="lower left")
+    fig.tight_layout(pad=0.2, w_pad=0.4)
+    fs.save(fig, path)
 
 
 def fig_roc(rcv, task, path):
     from sklearn.metrics import roc_curve, roc_auc_score
-    plt = _plt()
-    folder = Path(rcv) / f"eye_{task}_all_allrings"
-    grid = np.linspace(0, 1, 201); any_ = False
-    fig, ax = plt.subplots(figsize=(4.4, 4.2))
-    for mod, c in [("lr", "#7f8c8d"), ("rf", "#2e86c1"), ("hybrid_zone", "#d35400"), ("hybrid_orig", "#8e44ad")]:
+    from . import figstyle as fs
+    folder = Path(rcv) / f"eye_{task}_all_allrings"; grid = np.linspace(0, 1, 201); curves = []
+    for mod in ["rf", "lr", "hybrid_zone", "hybrid_orig"]:
         f = folder / mod / "oof.csv"
         if not f.exists():
             continue
-        o = pd.read_csv(f); tprs, aucs = [], []; nrep = o.cv_rep.nunique()
-        for r, d in o.groupby("cv_rep"):
-            fpr, tpr, _ = roc_curve(d.y_true, d.y_prob); tprs.append(np.interp(grid, fpr, tpr)); aucs.append(roc_auc_score(d.y_true, d.y_prob))
-        T = np.array(tprs); T[:, 0] = 0
-        ax.plot(grid, T.mean(0), color=c, label=f"{MODEL_LABEL[mod]} ({np.mean(aucs):.2f})")
-        ax.fill_between(grid, np.percentile(T, 2.5, 0), np.percentile(T, 97.5, 0), color=c, alpha=0.12)
-        any_ = True
-    if not any_:
-        plt.close(fig); return False
-    ax.plot([0, 1], [0, 1], "k--", lw=0.8); ax.set_xlabel("False positive rate"); ax.set_ylabel("True positive rate")
-    ax.set_title(f"{TASK_LABEL[task]}\nout-of-fold ROC, mean of {nrep} repeats (band = 95% repeat range)", fontsize=8); ax.legend(fontsize=6.5, loc="lower right")
-    fig.tight_layout(); fig.savefig(path, dpi=250, bbox_inches="tight"); plt.close(fig)
+        o = pd.read_csv(f); T, A = [], []
+        for _, d in o.groupby("cv_rep"):
+            fpr, tpr, _ = roc_curve(d.y_true, d.y_prob); T.append(np.interp(grid, fpr, tpr)); A.append(roc_auc_score(d.y_true, d.y_prob))
+        T = np.array(T); T[:, 0] = 0
+        curves.append((MODEL_LABEL[mod], grid, T.mean(0), np.percentile(T, 2.5, 0), np.percentile(T, 97.5, 0), np.mean(A), fs.MODEL_COLOR[mod]))
+    if not curves:
+        return False
+    fs.roc(curves, path, title=TASK_LABEL[task])
     return True
 
 
-def fig_zone_overall(imp_csv, title, path, square=False, log=False):
-    """All-feature zone importance: MPOD (7 stats) | OFA (Del + Amp) | combined, side by side, shared colour scale."""
-    plt = _plt()
-    from matplotlib.patches import Polygon
-    from matplotlib.colors import LogNorm, Normalize
-    imp = pd.read_csv(imp_csv)
-    panels = {"Structure (MPOD, 7 statistics)": imp[imp.group.isin(BASE[:7])],
-              "Function (OFA delay + sensitivity)": imp[imp.group.isin(["Del", "Amp"])], "All features": imp}
-    vals = {k: v.groupby("region").mean_abs_shap.sum() for k, v in panels.items()}
-    allv = pd.concat(vals.values()); pos = allv[allv > 0]
-    norm = (LogNorm(vmin=max(pos.min(), pos.max() * 1e-2), vmax=pos.max()) if log and len(pos) else Normalize(0, allv.max()))
-    cmap = plt.get_cmap("viridis"); geo = zone_geometry(square)
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4.4))
-    for ax, (name, v) in zip(axes, vals.items()):
-        for z, poly in geo.items():
-            val = v.get(z, 0.0)
-            ax.add_patch(Polygon(poly, closed=True, facecolor=cmap(norm(max(val, norm.vmin))), edgecolor="white", lw=0.8))
-            cpos = poly.mean(0) if z > 4 else poly[1:].mean(0) * 0.6
-            ax.text(*cpos, str(z), ha="center", va="center", fontsize=7, color="white")
-        ax.set_xlim(-3.15, 3.15); ax.set_ylim(-3.15, 3.15); ax.set_aspect("equal"); ax.axis("off"); ax.set_title(name, fontsize=9)
-    sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap); sm.set_array([])
-    fig.colorbar(sm, ax=axes.tolist(), shrink=0.75, label="sum of mean |SHAP| per zone" + (" (log)" if log else ""))
-    fig.suptitle(title + ("   [square layout, same sectors]" if square else ""), fontsize=10)
-    fig.savefig(path, dpi=250, bbox_inches="tight"); plt.close(fig)
+def shap_figures(exp, F):
+    """Fig 1 + Fig 4 (RF, intermediate/advanced) and appendix SHAP figures, all in the shared style."""
+    from . import figstyle as fs
+    made = []
+    for t in ["advanced", "any"]:
+        for mdl in ["rf", "hybrid_zone"]:
+            d = exp / f"{t}_{mdl}"
+            if not (d / "importance_features.csv").exists():
+                continue
+            imp = pd.read_csv(d / "importance_features.csv")
+            gr = pd.read_csv(d / "importance_group_ring.csv")
+            main = (t == "advanced" and mdl == "rf")
+            pre = "Fig4" if main else f"FigA_SHAP_{t}_{mdl}_"
+            fs.group_bar(imp.groupby("group").mean_abs_shap.sum(), F / f"{pre}a_group_importance.png")
+            fs.ring_bars(gr[gr.ring != "all"], F / f"{pre}b_ring_averaged.png")
+            fs.zone_grid(imp, F / f"{pre}c_zone_maps_linear.png", log=False)
+            fs.zone_grid(imp, F / f"{pre}d_zone_maps_log.png", log=True)
+            if main:
+                tot = imp.groupby("region").mean_abs_shap.sum().to_dict()
+                fs.zone_pair(tot, F / "Fig1_zone_importance_circular.png")
+                fs.zone_pair(tot, F / "FigA3_zone_importance_square.png", square=True)
+                fs.zone_grid(imp, F / "FigA_SHAP_square_zone_maps_log.png", log=True, square=True)
+                if (d / "local_examples.csv").exists():
+                    fs.local_bars(pd.read_csv(d / "local_examples.csv"), F / "FigA_local_explanations.png")
+            made.append(f"{t}_{mdl}")
+    return made
 
 
 # ------------------------------------------------------------------ main
@@ -268,29 +245,32 @@ def main():
     T3 = table_paired(C); save(T3, out / "tables" / "T3_ofa_value_paired", "Pre-specified paired comparisons (dAUC = A - B)")
     T4 = table_models(); save(T4, out / "tables" / "T4_models", "Models and configurations")
 
-    fig_model_comparison(R, out / "figures" / "F_model_comparison.png")
-    fig_feature_sets(R, out / "figures" / "F_feature_sets.png")
+    F = out / "figures"
+    for old in F.glob("*.png"):          # never mix old- and new-style files
+        old.unlink()
+    fig3_performance(R, F / "Fig3_performance_ablation.png")
     if C is not None:
-        fig_logo(C, out / "figures" / "F_leave_one_group_out.png")
-    roc_done = [t for t in TASKS if fig_roc(rcv, t, out / "figures" / f"F_roc_{t}.png")]
-
-    exp = root / "explain"; copied = []
+        fig_logo(C, F / "FigA_leave_one_group_out.png")
+    roc_done = [t for t in TASKS if fig_roc(rcv, t, F / f"FigA2_roc_{t}.png")]
+    exp = root / "explain"
+    shap_figures(exp, F)
     for t in ["advanced", "any"]:
         for mdl in ["rf", "hybrid_zone"]:
-            d = exp / f"{t}_{mdl}"
-            if not (d / "importance_features.csv").exists():
-                continue
-            if mdl == "rf":
-                for sq in (False, True):
-                    for lg in (False, True):
-                        fig_zone_overall(d / "importance_features.csv", f"Random forest | {TASK_LABEL[t]} | zone importance (out-of-fold SHAP)",
-                                         out / "figures" / f"F_zone_overall_{t}_rf_{'square' if sq else 'circular'}_{'log' if lg else 'linear'}.png", sq, lg)
-            for f in (d / "figures").glob("*.png"):
-                dst = out / "figures" / f"SHAP_{t}_{mdl}_{f.name}"; shutil.copy2(f, dst); copied.append(dst.name)
-            shutil.copy2(d / "stability.json", out / "tables" / f"SHAP_stability_{t}_{mdl}.json")
+            sj = exp / f"{t}_{mdl}" / "stability.json"
+            if sj.exists():
+                shutil.copy2(sj, out / "tables" / f"SHAP_stability_{t}_{mdl}.json")
+    cal = root / "calibration"
+    for f in cal.glob("calibration_dca_*.png"):
+        shutil.copy2(f, F / f"FigA_{f.name}")
+    if (cal / "CALIBRATION.csv").exists():
+        shutil.copy2(cal / "CALIBRATION.csv", out / "tables" / "TA7_calibration.csv")
+    ag = root / "age_check" / "COMPARISONS_AGE.csv"
+    if ag.exists():
+        shutil.copy2(ag, out / "tables" / "TA6_age_comparisons.csv")
+        shutil.copy2(root / "age_check" / "AUC_BY_SET.csv", out / "tables" / "TA6_age_auc_by_set.csv")
     diag = root / "diagnostics" / "figures" / "A_stage_direction_heatmap.png"
     if diag.exists():
-        shutil.copy2(diag, out / "figures" / "S_univariate_stage_ring_heatmap.png")
+        shutil.copy2(diag, F / "FigA_univariate_stage_ring_heatmap.png")
 
     # key numbers as sentences
     def get(t, mod, gb="eye", g="all", rg="all"):
@@ -321,21 +301,20 @@ def main():
             if len(x):
                 x = x.iloc[0]
                 lines.append(f"- Pre-specified primary (RF, {TASK_LABEL[t]}): adding OFA to MPOD dAUC {x.dAUC:+.3f} [{x.lo:+.3f} to {x.hi:+.3f}] ({x.conclusion})")
-    lines += ["", "## Manuscript mapping",
-              "| Manuscript item | Replace with |", "|---|---|",
-              "| Abstract / Results numbers | Key numbers above, T1 |",
-              "| Table 3 (holdout performance) | tables/T1_performance |",
-              "| Table A2 (feature indexing) + Fig 3b | tables/T2_feature_sets + figures/F_feature_sets.png |",
-              "| Table A3 (DL models) | tables/T4_models + T1 rows for the hybrids |",
-              "| Table A4 (multiclass) | stage-specific rows of T1 (early / advanced) |",
-              "| Fig 1 middle/right, Fig A3 'final' SHAP panel | figures/F_zone_overall_advanced_rf_circular_linear/log.png |",
-              "| Fig 3a (normalisation x sampling) | removed (experiment on the earlier data export) |",
-              "| Fig 4a / 4b / 4c / 4d | figures/SHAP_advanced_rf_group_importance / ring_averaged / zone_maps_circular_linear / _log |",
-              "| Fig 5 (iterative exclusion) + Figs A4-A6 | figures/F_leave_one_group_out.png + tables/T3 (supplement) |",
-              "| Fig 6 (local explanations) | figures/SHAP_advanced_rf_local_examples.png |",
-              "| Fig A1 (architecture) | redraw for the zone-token hybrid (T4 row) |",
-              "| Fig A2 (ROC) | " + (", ".join(f"figures/F_roc_{t}.png" for t in roc_done) if roc_done else "run on the HPC (needs oof.csv)") + " |",
-              "| Supplementary (optional) | figures/S_univariate_stage_ring_heatmap.png; hybrid SHAP: figures/SHAP_*_hybrid_zone_* |"]
+    lines += ["", "## Manuscript mapping (all figures share src/figstyle.py)",
+              "| Manuscript item | File |", "|---|---|",
+              "| Fig 1 middle/right | figures/Fig1_zone_importance_circular.png |",
+              "| Fig 3 (replaces 3a + 3b) | figures/Fig3_performance_ablation.png |",
+              "| Fig 4a / 4b / 4c / 4d | figures/Fig4a_group_importance / Fig4b_ring_averaged / Fig4c_zone_maps_linear / Fig4d_zone_maps_log |",
+              "| Table 3 | tables/T1_performance |",
+              "| Appendix: ROC (A2) | " + (", ".join(f"figures/FigA2_roc_{t}.png" for t in roc_done) if roc_done else "run on the HPC") + " |",
+              "| Appendix: focus-group final panel (A3) | figures/FigA3_zone_importance_square.png |",
+              "| Appendix: local explanations (old Fig 6) | figures/FigA_local_explanations.png |",
+              "| Appendix: leave-one-group-out (old Fig 5) | figures/FigA_leave_one_group_out.png + tables/T3 |",
+              "| Appendix: calibration + decision curves | figures/FigA_calibration_dca_*.png + tables/TA7_calibration.csv |",
+              "| Appendix: age comparisons | tables/TA6_age_comparisons.csv |",
+              "| Appendix: hybrid / any-AMD SHAP, square maps, univariate heatmap | figures/FigA_SHAP_*, FigA_univariate_stage_ring_heatmap.png |",
+              "| Tables A2 / A3 / A5 | tables/T2_feature_sets / T4_models / T3_ofa_value_paired |"]
     (out / "RESULTS_PACK.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
     print(f"\nwrote {out}  (tables: {len(list((out / 'tables').glob('*.csv')))}, figures: {len(list((out / 'figures').glob('*.png')))})")

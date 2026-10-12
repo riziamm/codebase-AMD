@@ -24,7 +24,7 @@ TASK = {"any": "Any AMD (AREDS 2-4 vs 1)", "advanced": "Intermediate/advanced (A
 
 
 def _logit(p):
-    p = np.clip(p, 1e-6, 1 - 1e-6)
+    p = np.clip(p, 1e-3, 1 - 1e-3)        # saturated (0/1) predictions would make the recalibration fit diverge
     return np.log(p / (1 - p))
 
 
@@ -40,8 +40,8 @@ def _newton(X, y, offset=None, iters=50):
             break
         b += step
         if np.max(np.abs(step)) < 1e-8:
-            break
-    return b
+            return b if np.all(np.abs(b) < 20) else np.full_like(b, np.nan)
+    return np.full_like(b, np.nan)        # not converged (separation) -> undefined, reported as NaN
 
 
 def cal_metrics(y, p):
@@ -71,13 +71,13 @@ def boot_rows(eye, B, seed):
 
 def summarise(D, B, seed):
     y = D["y"]
-    point = pd.DataFrame([cal_metrics(y, p) for p in D["P"]]).mean()
+    point = pd.DataFrame([cal_metrics(y, p) for p in D["P"]]).median()   # median over repeats: robust
     boots = []
     for rows in boot_rows(D["eye"], B, seed):
         yb = y[rows]
         if yb.min() == yb.max():
             continue
-        boots.append(pd.DataFrame([cal_metrics(yb, p[rows]) for p in D["P"]]).mean())
+        boots.append(pd.DataFrame([cal_metrics(yb, p[rows]) for p in D["P"]]).median())
     bt = pd.DataFrame(boots)
     return point, bt.quantile(0.025), bt.quantile(0.975)
 
@@ -89,27 +89,30 @@ def net_benefit(y, p, t):
 
 
 def figures(data, task, grouping, out):
-    import matplotlib; matplotlib.use("Agg")
+    from . import figstyle as fs
     import matplotlib.pyplot as plt
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(10, 4.2))
+    fs.apply()
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(6.8, 2.8))
     bins = np.linspace(0, 1, 6)
     for m, D in data.items():
         y = np.tile(D["y"], len(D["P"])); p = D["P"].ravel()
         idx = np.clip(np.digitize(p, bins) - 1, 0, len(bins) - 2)
         mp = [p[idx == k].mean() for k in range(len(bins) - 1) if (idx == k).sum() >= 5]
         oy = [y[idx == k].mean() for k in range(len(bins) - 1) if (idx == k).sum() >= 5]
-        a1.plot(mp, oy, "o-", color=COLOR[m], label=LABEL[m])
+        a1.plot(mp, oy, "o-", ms=3, lw=1.2, color=fs.MODEL_COLOR[m], label=LABEL[m])
         th = np.linspace(0.05, 0.8, 31)
         nb = [np.mean([net_benefit(D["y"], pr, t) for pr in D["P"]]) for t in th]
-        a2.plot(th, nb, color=COLOR[m], label=LABEL[m])
-    a1.plot([0, 1], [0, 1], "k--", lw=0.8); a1.set_xlabel("Mean predicted probability (5 bins)"); a1.set_ylabel("Observed proportion with AMD")
-    a1.set_title("Calibration (out-of-fold, pooled over repeats)", fontsize=9); a1.legend(fontsize=7)
+        a2.plot(th, nb, lw=1.2, color=fs.MODEL_COLOR[m], label=LABEL[m])
+    a1.plot([0, 1], [0, 1], color="gray", ls="--", lw=1); a1.grid(True, ls="--", alpha=0.7)
+    a1.set_xlabel("Mean predicted probability"); a1.set_ylabel("Observed proportion with AMD")
+    a1.set_title("(a) Calibration", fontsize=8.5, loc="left"); a1.legend(fontsize=6, loc="upper left")
     y0 = next(iter(data.values()))["y"]; prev = y0.mean(); th = np.linspace(0.05, 0.8, 31)
     a2.plot(th, prev - (1 - prev) * th / (1 - th), "k:", lw=1, label="Treat all")
-    a2.axhline(0, color="k", lw=0.8, label="Treat none"); a2.set_ylim(-0.1, max(prev, 0.1) + 0.05)
-    a2.set_xlabel("Threshold probability"); a2.set_ylabel("Net benefit"); a2.set_title("Decision curve", fontsize=9); a2.legend(fontsize=7)
-    fig.suptitle(f"{TASK[task]} | {grouping}-grouped repeated nested CV", fontsize=10)
-    fig.tight_layout(); fig.savefig(out / f"calibration_dca_{task}_{grouping}.png", dpi=250, bbox_inches="tight"); plt.close(fig)
+    a2.axhline(0, color="k", lw=0.8, label="Treat none"); a2.set_ylim(-0.1, max(prev, 0.1) + 0.05); a2.grid(True, ls="--", alpha=0.7)
+    a2.set_xlabel("Threshold probability"); a2.set_ylabel("Net benefit"); a2.set_title("(b) Decision curve", fontsize=8.5, loc="left")
+    a2.legend(fontsize=6, loc="upper right")
+    fig.tight_layout(pad=0.2, w_pad=0.8)
+    fs.save(fig, out / f"calibration_dca_{task}_{grouping}.png")
 
 
 def main():
