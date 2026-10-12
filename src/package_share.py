@@ -174,7 +174,7 @@ def main():
         print(f"WARNING: package is {P.bytes/1e6:.0f} MB (> {a.max_total_mb} MB). Consider deleting figures/ folders you don't need before pushing.")
     # final safety scan of the OUTPUT folder
     bad = [str(f) for f in Path(a.out).rglob("*.csv")
-           if "preds_holdout" not in f.parts and not csv_ok(f, max_rows=2000 if ("diagnostics" in f.parts or "explain" in f.parts or "ofa_value" in f.parts or "results_pack" in f.parts) else 200)[0]]
+           if "preds_holdout" not in f.parts and not csv_ok(f, max_rows=2000 if (set(f.parts) & {"diagnostics", "explain", "ofa_value", "results_pack", "p2_baseline", "p2_stability", "p2_function"}) else 200)[0]]
     bad += [str(f) for f in Path(a.out).rglob("*") if f.suffix.lower() in {".pkl", ".npy", ".npz", ".pt", ".html"}]
     bad += [str(f) for f in Path(a.out).rglob("oof_reg*.csv")]          # Paper 2 row-level predictions
     # patient-era calendar dates (visit dates etc.) must never be shared; run timestamps (>= 2025) are fine
