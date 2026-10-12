@@ -20,19 +20,18 @@
 - Pre-specified primary (RF, Any AMD (AREDS 2-4 vs 1)): adding OFA to MPOD dAUC -0.019 [-0.041 to +0.001] (no difference detected)
 - Pre-specified primary (RF, Intermediate/advanced (AREDS 3-4 vs 1)): adding OFA to MPOD dAUC -0.005 [-0.014 to +0.003] (no difference detected)
 
-## Manuscript mapping
-| Manuscript item | Replace with |
+## Manuscript mapping (all figures share src/figstyle.py)
+| Manuscript item | File |
 |---|---|
-| Abstract / Results numbers | Key numbers above, T1 |
-| Table 3 (holdout performance) | tables/T1_performance |
-| Table A2 (feature indexing) + Fig 3b | tables/T2_feature_sets + figures/F_feature_sets.png |
-| Table A3 (DL models) | tables/T4_models + T1 rows for the hybrids |
-| Table A4 (multiclass) | stage-specific rows of T1 (early / advanced) |
-| Fig 1 middle/right, Fig A3 'final' SHAP panel | figures/F_zone_overall_advanced_rf_circular_linear/log.png |
-| Fig 3a (normalisation x sampling) | removed (experiment on the earlier data export) |
-| Fig 4a / 4b / 4c / 4d | figures/SHAP_advanced_rf_group_importance / ring_averaged / zone_maps_circular_linear / _log |
-| Fig 5 (iterative exclusion) + Figs A4-A6 | figures/F_leave_one_group_out.png + tables/T3 (supplement) |
-| Fig 6 (local explanations) | figures/SHAP_advanced_rf_local_examples.png |
-| Fig A1 (architecture) | redraw for the zone-token hybrid (T4 row) |
-| Fig A2 (ROC) | figures/F_roc_any.png, figures/F_roc_early.png, figures/F_roc_advanced.png |
-| Supplementary (optional) | figures/S_univariate_stage_ring_heatmap.png; hybrid SHAP: figures/SHAP_*_hybrid_zone_* |
+| Fig 1 middle/right | figures/Fig1_zone_importance_circular.png |
+| Fig 3 (replaces 3a + 3b) | figures/Fig3_performance_ablation.png |
+| Fig 4a / 4b / 4c / 4d | figures/Fig4a_group_importance / Fig4b_ring_averaged / Fig4c_zone_maps_linear / Fig4d_zone_maps_log |
+| Table 3 | tables/T1_performance |
+| Appendix: ROC (A2) | figures/FigA2_roc_any.png, figures/FigA2_roc_early.png, figures/FigA2_roc_advanced.png |
+| Appendix: focus-group final panel (A3) | figures/FigA3_zone_importance_square.png |
+| Appendix: local explanations (old Fig 6) | figures/FigA_local_explanations.png |
+| Appendix: leave-one-group-out (old Fig 5) | figures/FigA_leave_one_group_out.png + tables/T3 |
+| Appendix: calibration + decision curves | figures/FigA_calibration_dca_*.png + tables/TA7_calibration.csv |
+| Appendix: age comparisons | tables/TA6_age_comparisons.csv |
+| Appendix: hybrid / any-AMD SHAP, square maps, univariate heatmap | figures/FigA_SHAP_*, FigA_univariate_stage_ring_heatmap.png |
+| Tables A2 / A3 / A5 | tables/T2_feature_sets / T4_models / T3_ofa_value_paired |
