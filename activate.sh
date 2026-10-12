@@ -57,6 +57,12 @@ _p2_main() {
   for f in "$MAIN/data/export/ofa44_layout.csv" "$MAIN/data/ofa44_layout.csv" "$MAIN/ofa44_layout.csv"; do
     [ -f "$f" ] && export BANDS44="$f" && break
   done
+  if [ -z "${BANDS44:-}" ]; then        # not in the expected place: look anywhere under the project folder
+    local found; found="$(find "$(dirname "$(dirname "$MAIN")")" -maxdepth 6 -name ofa44_layout.csv \
+                          -not -path "*/AMD-P2/*" 2>/dev/null | head -1)"
+    [ -n "$found" ] && echo "NOTE: using $found  (move it to $MAIN/data/export/ to make this permanent)" \
+                    && export BANDS44="$found"
+  fi
   export CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"   # RTX A6000
   mkdir -p reruns_paper2/logs
 
