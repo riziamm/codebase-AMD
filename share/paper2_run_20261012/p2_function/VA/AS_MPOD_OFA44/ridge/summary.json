@@ -1,0 +1,15 @@
+{
+ "outcome": "VA",
+ "set": "AS+MPOD+OFA44",
+ "model": "ridge",
+ "visit": "mean",
+ "n_features": 33,
+ "n_eyes": 56,
+ "n_subjects": 28,
+ "repeats": 20,
+ "k": 5,
+ "seed": 2027,
+ "R2": -0.04543411357590234,
+ "rho": -0.2601965277227729,
+ "MAE": 6.606750568576781
+}

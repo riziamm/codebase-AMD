@@ -1,0 +1,15 @@
+{
+ "outcome": "VA",
+ "set": "AS+OFA",
+ "model": "ridge",
+ "visit": "mean",
+ "n_features": 8,
+ "n_eyes": 56,
+ "n_subjects": 28,
+ "repeats": 20,
+ "k": 5,
+ "seed": 2027,
+ "R2": -0.07544162513363015,
+ "rho": -0.25179639726418135,
+ "MAE": 6.6032808433206425
+}

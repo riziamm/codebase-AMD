@@ -1,0 +1,15 @@
+{
+ "outcome": "VAlc",
+ "set": "AS",
+ "model": "ridge",
+ "visit": "mean",
+ "n_features": 2,
+ "n_eyes": 58,
+ "n_subjects": 29,
+ "repeats": 20,
+ "k": 5,
+ "seed": 2027,
+ "R2": -0.07012674619396253,
+ "rho": -0.10993110570533773,
+ "MAE": 9.317093105801915
+}

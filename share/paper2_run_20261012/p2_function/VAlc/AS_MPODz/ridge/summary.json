@@ -1,0 +1,15 @@
+{
+ "outcome": "VAlc",
+ "set": "AS+MPODz",
+ "model": "ridge",
+ "visit": "mean",
+ "n_features": 142,
+ "n_eyes": 58,
+ "n_subjects": 29,
+ "repeats": 20,
+ "k": 5,
+ "seed": 2027,
+ "R2": -0.007952688846691902,
+ "rho": 0.19353279747958815,
+ "MAE": 9.111702901760022
+}

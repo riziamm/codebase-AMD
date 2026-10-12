@@ -1,8 +1,8 @@
 # Pre-specified analysis plan, Paper 2 (short paper)
 
-**Status: DRAFT, not signed off.** The P1/P2 code refuses to run on real data until this line reads
+**Status: signed off 12 oct by lead author.** The P1/P2 code refuses to run on real data until this line reads
 `Status: SIGNED OFF (date, names)`. Step S0 (descriptive) may run before sign-off.
-**Version 3 (locked content), 12 Oct 2026**, branch `AMD-P2`. **Sign-off:** ____________ (all co-authors, date)
+**Version 3 (locked content), 12 Oct 2026**, branch `AMD-P2`. **Sign-off:** __lead author__ (all co-authors pending)
 
 Working title: *Does objective pupillographic perimetry (OFA) explain visual function in age-related macular
 degeneration beyond age and macular pigment?* (with first-to-last-visit stability as a descriptive aim)

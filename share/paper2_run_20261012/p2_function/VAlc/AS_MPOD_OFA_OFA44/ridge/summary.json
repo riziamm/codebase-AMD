@@ -1,0 +1,15 @@
+{
+ "outcome": "VAlc",
+ "set": "AS+MPOD+OFA+OFA44",
+ "model": "ridge",
+ "visit": "mean",
+ "n_features": 39,
+ "n_eyes": 58,
+ "n_subjects": 29,
+ "repeats": 20,
+ "k": 5,
+ "seed": 2027,
+ "R2": -0.07140480731758382,
+ "rho": 0.0066050149723366255,
+ "MAE": 9.590703240666564
+}

@@ -1,0 +1,15 @@
+{
+ "outcome": "VA",
+ "set": "AS+grade",
+ "model": "ridge",
+ "visit": "mean",
+ "n_features": 3,
+ "n_eyes": 56,
+ "n_subjects": 28,
+ "repeats": 20,
+ "k": 5,
+ "seed": 2027,
+ "R2": -0.08966077111852676,
+ "rho": -0.1746573103791607,
+ "MAE": 6.576705086116666
+}

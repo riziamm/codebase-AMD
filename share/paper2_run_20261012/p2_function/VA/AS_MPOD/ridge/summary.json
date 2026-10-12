@@ -1,0 +1,15 @@
+{
+ "outcome": "VA",
+ "set": "AS+MPOD",
+ "model": "ridge",
+ "visit": "mean",
+ "n_features": 23,
+ "n_eyes": 56,
+ "n_subjects": 28,
+ "repeats": 20,
+ "k": 5,
+ "seed": 2027,
+ "R2": -0.07212721175656872,
+ "rho": -0.23333257437377766,
+ "MAE": 6.703904454413921
+}
