@@ -2,11 +2,11 @@
 
 **Status: DRAFT, not signed off.** The P1/P2 code refuses to run on real data until this line reads
 `Status: SIGNED OFF (date, names)`. Step S0 (descriptive) may run before sign-off.
-**Version 2, 11 Oct 2026**, branch `AMD-P2`. **Sign-off:** ____________ (all co-authors, date)
+**Version 3 (locked content), 12 Oct 2026**, branch `AMD-P2`. **Sign-off:** ____________ (all co-authors, date)
 
 Working title: *Does objective pupillographic perimetry (OFA) explain visual function in age-related macular
 degeneration beyond age and macular pigment?* (with first-to-last-visit stability as a descriptive aim)
-Target: IEEE EMBC 2027 (full paper; deadline reported as 24 Jan 2027, **verify on embc.embs.org**).
+Target: IEEE EMBC 2027 (full paper; deadline around late Jan 2027, **verify on embc.embs.org**).
 Paper 1 (submitted, *Machine Learning: Health*) is cited as "submitted"; none of its results are re-reported.
 
 ## 0. Transparency: what has already been seen
@@ -49,40 +49,53 @@ Paper 1 (submitted, *Machine Learning: Health*) is cited as "submitted"; none of
   participant-grouped primary; not duplicated here). For Paper 2: every P1 model contains age and sex.
 - S0 contains no association between predictors and acuity.
 
-## 3. P1 (sole primary aim, confirmatory): does OFA explain acuity beyond age, sex and MPOD?
-**Hypothesis H1.** Adding OFA (Del, Amp; 3 ring means each) to age + sex + MPOD (7 statistics x 3 ring means)
-increases out-of-fold R^2 for **low-contrast visual acuity (VAlc)**.
+## 3. P1 (sole primary aim, confirmatory): does OFA explain low-contrast acuity beyond MPOD and age?
+**Aims overview (v3, locked)**
+| Level | Analysis |
+|---|---|
+| **Primary** | VAlc ~ (MPOD + age + OFA-20) vs (MPOD + age); eye level, visits averaged; paired; CI |
+| Secondary | same contrast for standard VA; OFA-44 vs OFA-20 head-to-head (both on top of MPOD + age); primary contrast with first-visit-only and last-visit-only features |
+| Descriptive | visit-to-visit stability and first-to-last change by AREDS grade (section 4) |
+| Exploratory | early-AMD delay direction (section 5) |
+| Supplementary | pre-specified robustness contrasts (table below), supplement only |
 
-**Design.** Eye level; features = **mean of first and last visit** (primary). Repeated (R = 20) 5-fold CV,
-**participant-grouped** (age and sex are participant-level; fellow eyes share acuity determinants), stratified on
-worst-eye AREDS {1, 2, 3+}. Identical splits for all feature sets of an outcome and visit (paired). Ridge
-regression (alpha tuned by inner 3-fold participant-grouped CV); imputation and scaling inside training folds.
-Seed 2027. No deep learning (58 eyes).
+**Hypothesis H1.** Adding OFA-20 (Del, Amp; centre/middle/outer ring means = 6 features) to MPOD (7 statistics x
+3 ring means = 21) + age increases out-of-fold R^2 for **low-contrast visual acuity (VAlc)**.
+"Age" means **age + sex** in every model (sex is a standard adjustment; it is in both arms of every contrast, so
+it cannot create an OFA effect).
+
+**Design.** Eye level (58 eyes); features = **mean of first and last visit**. Repeated (R = 20) 5-fold CV,
+**participant-grouped**, stratified on worst-eye AREDS {1, 2, 3+}. Identical splits for all feature sets of an
+outcome and visit (paired). Ridge regression (alpha tuned by inner 3-fold participant-grouped CV); imputation and
+scaling inside training folds. Seed 2027. No deep learning.
 **Metric.** Out-of-fold R^2 averaged over repeats (primary); Spearman rho and MAE (secondary).
-**Inference.** Participant-clustered bootstrap (B = 2000), paired.
-**Decision rule.** dR^2 95% CI > 0: "OFA adds explanatory value"; CI includes 0: "no difference detected" (never
-"no effect"); CI < 0: "OFA worsens out-of-sample prediction".
-**Visit rule (because the acuity visit is unknown).** The primary contrast is repeated with last-visit features
-only (SENS1) and first-visit features only (SENS2). If the three conclusions agree, report "consistent". If they
-differ, report the **last visit as primary-for-interpretation** and flag the uncertainty in the abstract.
-**Precision (synthetic simulation, same design):** CI half-width ~0.10-0.13, so only dR^2 of roughly 0.10-0.15
-or more is detectable. Stated in the paper.
+**Inference.** Participant-clustered bootstrap (B = 2000), paired; 95% percentile CI of dR^2.
+**Decision rule.** CI > 0: "OFA-20 adds explanatory value"; CI includes 0: "no difference detected" (never
+"no effect"); CI < 0: "adding OFA-20 worsens out-of-sample prediction".
+**Precision (synthetic simulation, same design):** CI half-width ~0.10-0.13; only dR^2 of roughly 0.10-0.15 or
+more is detectable. Stated in the paper.
 **Missing data.** Eyes with missing outcome are excluded from that outcome (n reported; VA: 2 eyes); missing
 features are median-imputed in-fold.
 
-**Secondary (pre-specified; reported with CIs, no significance claims)**
-| ID | Contrast (A vs B), visit mean unless stated | Outcome |
-|---|---|---|
-| S1 | AS+MPOD+OFA vs AS+MPOD | VA |
-| S2a/b | AS+OFA vs AS | VAlc / VA |
-| S3a/b (context) | AS+MPOD vs AS | VAlc / VA |
-| S4a/b | AS+grade+OFA vs AS+grade (function beyond the structural grade) | VAlc / VA |
-| S5a/b | AS+MPOD+Del, AS+MPOD+Amp vs AS+MPOD | VAlc |
-| S6a/b | AS+MPOD+OFA+OFA44 vs AS+MPOD+OFA (wider field: 44-region ring means, whole-field mean and worst) | VAlc / VA |
-| SENS1 / SENS2 | primary contrast, last visit only / first visit only (visit rule above) | VAlc |
-| SENS3 | primary contrast with random forest | VAlc |
-| SENS4 | primary contrast at full 20-region resolution | VAlc |
-AS = age + sex. Code: `src/p2_function.py` (`RUNS`, `CONTRASTS`).
+**Contrasts** (d = A - B; code `src/p2_function.py`, `CONTRASTS`; AS = age + sex)
+| ID | Role | A vs B | Outcome | Visit |
+|---|---|---|---|---|
+| P1 | **primary** | AS+MPOD+OFA20 vs AS+MPOD | VAlc | mean |
+| S1 | secondary | AS+MPOD+OFA20 vs AS+MPOD | VA | mean |
+| S2a/b | secondary | AS+MPOD+OFA44 vs AS+MPOD+OFA20 (head-to-head; OFA-44 = Del2/Amp2 ring means) | VAlc / VA | mean |
+| S3 | secondary | AS+MPOD+OFA20 vs AS+MPOD | VAlc | last |
+| S4 | secondary | AS+MPOD+OFA20 vs AS+MPOD | VAlc | first |
+| X1a/b | supplementary | AS+OFA20 vs AS | VAlc / VA | mean |
+| X2a/b | supplementary | AS+MPOD vs AS (context) | VAlc / VA | mean |
+| X3a/b | supplementary | AS+grade+OFA20 vs AS+grade | VAlc / VA | mean |
+| X4a/b | supplementary | AS+MPOD+Del, AS+MPOD+Amp vs AS+MPOD | VAlc | mean |
+| X5a/b | supplementary | AS+MPOD+OFA20+OFA44 vs AS+MPOD+OFA20 (nested) | VAlc / VA | mean |
+| X6 | supplementary | P1 contrast, random forest | VAlc | mean |
+| X7 | supplementary | P1 contrast, full 20-region resolution | VAlc | mean |
+
+**Visit rule (acuity visit unknown).** If P1, S3 and S4 reach the same conclusion: "consistent". If not: the
+**last visit is primary-for-interpretation** and the uncertainty is flagged in the abstract. Computed
+automatically in `REPORT.md`.
 
 ## 4. P2 (secondary aim, descriptive): visit-to-visit stability, first vs last visit
 **Not test-retest reliability.** With an unknown interval of months to years, every agreement statistic mixes
@@ -98,11 +111,12 @@ CIs: participant-clustered bootstrap (B = 2000). Paired dICC (OFA vs MPOD mean, 
 stability, applied to the CI. A high ICC means OFA ranks eyes consistently across visits; a low ICC cannot separate
 noise from progression. Code: `src/p2_stability.py`.
 
-## 5. Previously pre-specified analyses carried over (reporting commitment of `ANALYSIS_PLAN_OFA.md`)
+## 5. Exploratory: early-AMD delay direction, and analyses carried over from `ANALYSIS_PLAN_OFA.md`
 C (structure-function coupling) and D (functional signal in early AMD) were pre-specified for the short paper and
 have been run (`share/run_20261011/ofa_value`). They are reported in one table, labelled as such, with the
-original conclusions. The "faster delay in early AMD" direction was observed in these data, so it is **not**
-tested here as a new hypothesis; it is stated as a hypothesis for an independent cohort.
+original conclusions. The **early-AMD delay direction** ("faster delay in early AMD") is **exploratory**: it
+was observed in these data (analysis D), so it is described with its CI, never tested as a new hypothesis, and
+stated as a hypothesis for an independent cohort. No new code; results from `share/run_20261011/ofa_value`.
 Note: the ICC from that plan was framed as test-retest; it is re-framed here as visit-to-visit stability (section 4).
 
 ## 6. Not in this paper
@@ -112,6 +126,7 @@ Any model search beyond section 3.
 
 ## 7. Reporting commitments
 - P1 primary result (with the visit rule outcome) is reported in the abstract whatever its direction.
+- Hierarchy is fixed: primary > secondary > descriptive > exploratory > supplementary; no result moves up a level.
 - Every analysis in sections 3-5 is reported (main text or supplement).
 - Claims never exceed the CIs. One confirmatory test (P1), so no multiplicity correction; all else is descriptive.
 - Deviations are logged below with date and reason.
@@ -121,4 +136,5 @@ Any model search beyond section 3.
 ## 8. Deviation log
 | Date | Change | Reason | Before/after seeing P1/P2 results |
 |---|---|---|---|
+| 12 Oct 2026 | v3 (locked): P1 sole primary confirmed; secondary = standard VA, OFA-44 vs OFA-20 head-to-head, first/last-visit; descriptive = stability + change by grade; exploratory = early-AMD delay direction; former secondaries kept as supplementary | lead-author decision | before |
 | 11 Oct 2026 | v2: two visits are first/last study visits, not test-retest; P2 renamed visit-to-visit stability, descriptive, strata AREDS 1/2/3-4; P1 is the sole primary aim; visit sensitivity (SENS1/SENS2) and visit rule added; 44-region rings from `d.p(1).pattern(1)` | data structure clarified from `d.filesRe`; acuity visit not recorded | before (no P1/P2 run on real data) |

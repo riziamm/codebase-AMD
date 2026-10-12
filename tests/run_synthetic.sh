@@ -14,7 +14,7 @@ if find $T/share_test -name "oof*" | grep -q .; then echo "FAIL: row-level file 
 python - <<PY
 import pandas as pd
 c = pd.read_csv("$T/share_test/p2_function/CONTRASTS.csv"); p = c[c.id == "P1"].iloc[0]
-assert p.conclusion == "A adds (dR2 > 0)", p.conclusion       # planted Del effect must be found
+assert p.conclusion == "A > B (dR2 CI > 0)", p.conclusion       # planted Del effect must be found
 print("PRIMARY on planted signal:", round(p.dR2, 3), p.conclusion)
 PY
 grep -q "VisitLast_year" $T/share_test/p2_baseline/visits.csv || { echo "FAIL: visit years missing"; exit 1; }

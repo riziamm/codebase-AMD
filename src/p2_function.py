@@ -42,12 +42,16 @@ OUTCOMES = ["VAlc", "VA"]
 def feature_sets(E):
     AS = ["Age", "Sex01"]
     MP, OF = cols_ring(MPOD_STATS), cols_ring(["Del", "Amp"])
-    O44 = [c for c in E.columns if c.startswith(("Del2|", "Amp2|"))]
+    # OFA-44 = ring means of Del2/Amp2 from ofa44_layout.csv (same form as OFA-20); without a layout file:
+    # whole-field mean and worst value
+    O44 = [c for c in E.columns if c.startswith(("Del2|ring", "Amp2|ring"))] or \
+          [c for c in E.columns if c.startswith(("Del2|", "Amp2|"))]
     S = {"AS": AS, "AS+MPOD": AS + MP, "AS+MPOD+OFA": AS + MP + OF, "AS+OFA": AS + OF,
          "AS+MPOD+Del": AS + MP + cols_ring(["Del"]), "AS+MPOD+Amp": AS + MP + cols_ring(["Amp"]),
          "AS+grade": AS + ["Y"], "AS+grade+OFA": AS + ["Y"] + OF,
          "AS+MPODz": AS + cols_regions(MPOD_STATS), "AS+MPODz+OFAz": AS + cols_regions(MPOD_STATS + ["Del", "Amp"])}
     if O44:
+        S["AS+MPOD+OFA44"] = AS + MP + O44
         S["AS+MPOD+OFA+OFA44"] = AS + MP + OF + O44
     return S
 
@@ -55,28 +59,30 @@ def feature_sets(E):
 # (outcome, set, model, visit)
 RUNS = [(o, s, "ridge", "mean") for o in OUTCOMES for s in
         ["AS", "AS+MPOD", "AS+MPOD+OFA", "AS+OFA", "AS+MPOD+Del", "AS+MPOD+Amp", "AS+grade", "AS+grade+OFA",
-         "AS+MPOD+OFA+OFA44", "AS+MPODz", "AS+MPODz+OFAz"]] + \
+         "AS+MPOD+OFA44", "AS+MPOD+OFA+OFA44", "AS+MPODz", "AS+MPODz+OFAz"]] + \
        [(o, s, "rf", "mean") for o in OUTCOMES for s in ["AS+MPOD", "AS+MPOD+OFA"]] + \
        [("VAlc", s, "ridge", v) for v in ("last", "first") for s in ["AS+MPOD", "AS+MPOD+OFA"]]
 
-# (id, role, outcome, model, set_A, set_B, question, visit)   d = A - B
+# (id, role, outcome, model, set_A, set_B, question, visit)   d = A - B.  Roles follow plan v3 section 3.
 CONTRASTS = [
-    ("P1", "PRIMARY", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "OFA adds to age+sex+MPOD for low-contrast VA"),
-    ("S1", "secondary", "VA", "ridge", "AS+MPOD+OFA", "AS+MPOD", "OFA adds to age+sex+MPOD for VA"),
-    ("S2a", "secondary", "VAlc", "ridge", "AS+OFA", "AS", "OFA adds to age+sex (VAlc)"),
-    ("S2b", "secondary", "VA", "ridge", "AS+OFA", "AS", "OFA adds to age+sex (VA)"),
-    ("S3a", "context", "VAlc", "ridge", "AS+MPOD", "AS", "MPOD adds to age+sex (VAlc)"),
-    ("S3b", "context", "VA", "ridge", "AS+MPOD", "AS", "MPOD adds to age+sex (VA)"),
-    ("S4a", "secondary", "VAlc", "ridge", "AS+grade+OFA", "AS+grade", "OFA adds beyond AREDS grade (VAlc)"),
-    ("S4b", "secondary", "VA", "ridge", "AS+grade+OFA", "AS+grade", "OFA adds beyond AREDS grade (VA)"),
-    ("S5a", "secondary", "VAlc", "ridge", "AS+MPOD+Del", "AS+MPOD", "Del alone adds (VAlc)"),
-    ("S5b", "secondary", "VAlc", "ridge", "AS+MPOD+Amp", "AS+MPOD", "Amp alone adds (VAlc)"),
-    ("S6a", "secondary", "VAlc", "ridge", "AS+MPOD+OFA+OFA44", "AS+MPOD+OFA", "44-region field adds to 20 (VAlc)"),
-    ("S6b", "secondary", "VA", "ridge", "AS+MPOD+OFA+OFA44", "AS+MPOD+OFA", "44-region field adds to 20 (VA)"),
-    ("SENS1", "sensitivity", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "P1, last visit only", "last"),
-    ("SENS2", "sensitivity", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "P1, first visit only", "first"),
-    ("SENS3", "sensitivity", "VAlc", "rf", "AS+MPOD+OFA", "AS+MPOD", "P1 with random forest"),
-    ("SENS4", "sensitivity", "VAlc", "ridge", "AS+MPODz+OFAz", "AS+MPODz", "P1 at full 20-region resolution"),
+    ("P1", "PRIMARY", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "OFA-20 adds to MPOD+age (low-contrast VA)"),
+    ("S1", "secondary", "VA", "ridge", "AS+MPOD+OFA", "AS+MPOD", "OFA-20 adds to MPOD+age (standard VA)"),
+    ("S2a", "secondary", "VAlc", "ridge", "AS+MPOD+OFA44", "AS+MPOD+OFA", "OFA-44 vs OFA-20, head-to-head (VAlc)"),
+    ("S2b", "secondary", "VA", "ridge", "AS+MPOD+OFA44", "AS+MPOD+OFA", "OFA-44 vs OFA-20, head-to-head (VA)"),
+    ("S3", "secondary", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "P1 contrast, last visit only", "last"),
+    ("S4", "secondary", "VAlc", "ridge", "AS+MPOD+OFA", "AS+MPOD", "P1 contrast, first visit only", "first"),
+    ("X1a", "supplementary", "VAlc", "ridge", "AS+OFA", "AS", "OFA-20 adds to age (VAlc)"),
+    ("X1b", "supplementary", "VA", "ridge", "AS+OFA", "AS", "OFA-20 adds to age (VA)"),
+    ("X2a", "supplementary", "VAlc", "ridge", "AS+MPOD", "AS", "MPOD adds to age (VAlc)"),
+    ("X2b", "supplementary", "VA", "ridge", "AS+MPOD", "AS", "MPOD adds to age (VA)"),
+    ("X3a", "supplementary", "VAlc", "ridge", "AS+grade+OFA", "AS+grade", "OFA-20 adds beyond AREDS grade (VAlc)"),
+    ("X3b", "supplementary", "VA", "ridge", "AS+grade+OFA", "AS+grade", "OFA-20 adds beyond AREDS grade (VA)"),
+    ("X4a", "supplementary", "VAlc", "ridge", "AS+MPOD+Del", "AS+MPOD", "Del alone adds (VAlc)"),
+    ("X4b", "supplementary", "VAlc", "ridge", "AS+MPOD+Amp", "AS+MPOD", "Amp alone adds (VAlc)"),
+    ("X5a", "supplementary", "VAlc", "ridge", "AS+MPOD+OFA+OFA44", "AS+MPOD+OFA", "OFA-44 adds to OFA-20 (VAlc)"),
+    ("X5b", "supplementary", "VA", "ridge", "AS+MPOD+OFA+OFA44", "AS+MPOD+OFA", "OFA-44 adds to OFA-20 (VA)"),
+    ("X6", "supplementary", "VAlc", "rf", "AS+MPOD+OFA", "AS+MPOD", "P1 contrast with random forest"),
+    ("X7", "supplementary", "VAlc", "ridge", "AS+MPODz+OFAz", "AS+MPODz", "P1 contrast at full 20-region resolution"),
 ]
 CONTRASTS = [c if len(c) == 8 else c + ("mean",) for c in CONTRASTS]
 
@@ -225,15 +231,15 @@ def cmd_aggregate(a):
             lo, hi = np.percentile(bs, [2.5, 97.5])
             row.update({f"{m}_A": runs[ka][0][m], f"{m}_B": runs[kb][0][m], f"d{m}": dobs, f"d{m}_lo": lo,
                         f"d{m}_hi": hi, f"d{m}_boot_p": min(1.0, 2 * min((bs <= 0).mean(), (bs >= 0).mean()))})
-        row["conclusion"] = ("A adds (dR2 > 0)" if row["dR2_lo"] > 0 else
-                             "A worse (dR2 < 0)" if row["dR2_hi"] < 0 else "no difference detected")
+        row["conclusion"] = ("A > B (dR2 CI > 0)" if row["dR2_lo"] > 0 else
+                             "A < B (dR2 CI < 0)" if row["dR2_hi"] < 0 else "no difference detected")
         crow.append(row)
     C = pd.DataFrame(crow)
     C.to_csv(out / "CONTRASTS.csv", index=False)
     # pre-specified visit rule (plan section 3): mean of visits is primary; if first/last conclusions differ from it,
     # the last visit is primary-for-interpretation and the uncertainty is flagged
     cc = C.set_index("id")["conclusion"]
-    vis = [cc.get(k, "NOT RUN") for k in ("P1", "SENS1", "SENS2")]
+    vis = [cc.get(k, "NOT RUN") for k in ("P1", "S3", "S4")]
     if "NOT RUN" in vis:
         visit_rule = "visit sensitivity incomplete"
     elif len(set(vis)) == 1:
@@ -246,8 +252,8 @@ def cmd_aggregate(a):
                         "dR2_hi", "drho", "drho_lo", "drho_hi", "conclusion"] if c in C.columns]
     md = ["# Paper 2, P1: functional validity (out-of-fold, subject-grouped repeated CV)", "",
           "R2 = out-of-fold R^2 (can be < 0); rho = Spearman(prediction, observed); 95% CI = subject-clustered "
-          "bootstrap.", "Decision (plan): P1 is the only confirmatory test; all others are reported with CIs and no "
-          "significance claims.", "",
+          "bootstrap.", "Plan v3: P1 is the only confirmatory test; secondary and supplementary contrasts are reported with "
+          "CIs and no significance claims.", "",
           "## Contrasts (d = A - B, paired)", "~~~", C[show].round(3).to_string(index=False), "~~~", "",
           f"**Visit rule (pre-specified):** {visit_rule}", "",
           "## All runs", "~~~",
